@@ -7,10 +7,18 @@ class JobService {
         this.jobs = new Map();
     }
 
-    create(filename) {
+    create(filename, tmdbId) {
 
         if (!filename) {
             throw new Error("Filename is required");
+        }
+
+        const normalizedTmdbId = Number(tmdbId)
+
+        if (!Number.isInteger(normalizedTmdbId) || normalizedTmdbId <= 0) {
+            throw new Error(
+                "Valid tmdbId is required"
+            )
         }
 
         const jobId = randomUUID()
@@ -18,6 +26,9 @@ class JobService {
         const job = {
             id: jobId,
             filename,
+            movie: {
+                normalizedTmdbId
+            },
             status: JobStatus.CREATED,
             stage: null,
             progress: 0,

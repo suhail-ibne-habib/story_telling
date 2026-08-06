@@ -6,13 +6,13 @@ const asyncHandler = require('express-async-handler')
 
 const createJob = asyncHandler(async (req, res) => {
 
-    const { filename } = req.body;
+    const { filename, tmdbId } = req.body;
 
     if (!filename) {
         throw new ApiError("Filename is required", 400);
     }
 
-    const job = JobService.create(filename);
+    const job = JobService.create(filename, tmdbId);
 
     WorkflowEngine.start(job.id);
 

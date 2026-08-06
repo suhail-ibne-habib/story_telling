@@ -1,76 +1,60 @@
-const { execFile } = require('child_process')
-const { time } = require('console')
-const util = require('util')
+const { execFile } = require("child_process");
+const path = require("path");
+const util = require("util");
 
-const execFileAsync = util.promisify(execFile)
+const execFileAsync = util.promisify(execFile);
 
 class ShotDetectionService {
     constructor() {
-        this.binary = 'ffmpeg'
+        this.pythonBinary = "python";
+
+        this.scriptPath = path.join(
+            process.cwd(),
+            "python",
+            "detect_shots.py"
+        );
     }
 
-    async detect(videoPath, duration) {
-        const { stderr } = await execFileAsync(
-            this.binary,
+    async detect(videoPath) {
+        const { stdout, stderr } = await execFileAsync(
+            this.pythonBinary,
             [
-                "-i",
-                videoPath,
-
-                "-vf",
-                "select='gt(scene,0.3)',showinfo",
-
-                "-f",
-                "null",
-
-                "-"
+                this.scriptPath,
+                videoPath
             ],
             {
                 maxBuffer: 1024 * 1024 * 50
             }
-        )
-
-        const timestamps = this.parseTimestamps(stderr);
-
-        return this.buildShots(timestamps, duration);
-    }
-
-    parseTimestamps(stderr) {
-        const regex = /pts_time:(\d+(?:\.\d+)?)/g;
-
-        const timestamps = [];
-
-        let match;
-
-        while ((match = regex.exec(stderr)) !== null) {
-            timestamps.push(Number(match[1]));
-        }
-        return timestamps;
-    }
-
-    buildShots(timestamps, duration) {
-        const validTimestamps = timestamps.filter(
-            timestamp => timestamp > 0 && timestamp < duration
         );
 
-        const boundaris = [0, ...validTimestamps, duration]
-
-        const shots = []
-
-        for (let i = 0; i < boundaris.length - 1; i++) {
-            const start = boundaris[i]
-            const end = boundaris[i + 1]
-            const duration = Number((end - start).toFixed(3))
-
-            shots.push({
-                id: i + 1,
-                start: Number(start.toFixed(3)),
-                end: Number(end.toFixed(3)),
-                duration
-            })
+        if (stderr && stderr.trim()) {
+            console.log(
+                "[ShotDetectionService]",
+                stderr.trim()
+            );
         }
 
-        return shots;
+        const output = stdout.trim();
+
+        if (!output) {
+            throw new Error(
+                "PySceneDetect returned empty output"
+            );
+        }
+
+        try {
+            return JSON.parse(output);
+        } catch (error) {
+            console.error(
+                "PySceneDetect raw output:",
+                output
+            );
+
+            throw new Error(
+                `Failed to parse PySceneDetect output ${error.message}`
+            );
+        }
     }
 }
 
-module.exports = new ShotDetectionService()
+module.exports = new ShotDetectionService();

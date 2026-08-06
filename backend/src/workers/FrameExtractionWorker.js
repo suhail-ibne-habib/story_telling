@@ -1,65 +1,102 @@
-const EventBus = require('../core/EventBus')
-const events = require('../events/events')
-const StorageService = require('../../storage/StorageService')
-const JobService = require('../services/JobService')
+const fs = require("fs");
+const path = require("path");
 
-const path = require('path')
-const fs = require('fs')
-const FrameExtractionService = require('../services/FrameExtractionService')
+const EventBus = require("../core/EventBus");
+const events = require("../events/events");
+
+const JobService = require(
+    "../services/JobService"
+);
+
+const StorageService = require(
+    "../../storage/StorageService"
+);
+
+const FrameExtractionService = require(
+    "../services/FrameExtractionService"
+);
 
 EventBus.subscribe(
     events.SHOTS_COMPLETED,
     async ({ jobId }) => {
         try {
+            console.log(
+                "Frame extraction worker started..."
+            );
 
-            console.log("Frames extraction started....")
+            const job =
+                JobService.get(jobId);
 
-            // Job Id
-            const job = JobService.get(jobId)
-
-            // Input Movie Path
-            const moviePath = StorageService.getInputMovie(job.filename)
-
-            // shots path
-            const paths = StorageService.getPaths(jobId)
+            const paths =
+                StorageService.getPaths(jobId);
 
             const shotsFile = path.join(
                 paths.shots,
-                'shots.json'
-            )
+                "shots.json"
+            );
 
-            const shotsRaw = await fs.promises.readFile(
-                shotsFile,
-                'utf-8'
-            )
+            const shotsRaw =
+                await fs.promises.readFile(
+                    shotsFile,
+                    "utf-8"
+                );
 
-            const shots = JSON.parse(shotsRaw)
+            const shots =
+                JSON.parse(shotsRaw);
 
-            // Extracting Frames
-            for (const shot of shots) {
-                const timestamp = shot.start + shot.duration / 2
+            const inputMovie =
+                StorageService.getInputMovie(
+                    job.filename
+                );
 
-                const outputName = `shot_${String(shot.id).padStart(3, "0")}.jpg`;
+            const extractedShots =
+                await FrameExtractionService.extract(
+                    inputMovie,
+                    shots,
+                    paths.frames
+                );
 
-                const outputFile = path.join(
-                    paths.frames,
-                    outputName
+            const framesFile = path.join(
+                paths.frames,
+                "frames.json"
+            );
+
+            await fs.promises.writeFile(
+                framesFile,
+                JSON.stringify(
+                    extractedShots,
+                    null,
+                    2
                 )
+            );
 
-                await FrameExtractionService.extract(moviePath, timestamp, outputFile)
-            }
+            const totalFrames =
+                extractedShots.reduce(
+                    (total, shot) => {
+                        return (
+                            total +
+                            shot.frames.length
+                        );
+                    },
+                    0
+                );
 
-            // Output File Generation
+            console.log(
+                `Extracted ${totalFrames} frames from ${extractedShots.length} shots`
+            );
 
             EventBus.publish(
                 events.FRAMES_COMPLETED,
                 {
                     jobId
                 }
-            )
+            );
 
         } catch (error) {
-            console.error("Frames extraction failed! ", error)
+            console.error(
+                "Frame extraction failed!",
+                error
+            );
 
             EventBus.publish(
                 events.FRAMES_FAILED,
@@ -67,7 +104,7 @@ EventBus.subscribe(
                     jobId,
                     error: error.message
                 }
-            )
+            );
         }
     }
-)
+);

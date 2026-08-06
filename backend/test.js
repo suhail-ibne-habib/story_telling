@@ -1,17 +1,37 @@
-const ShotDetectionService = require('./src/services/ShotDetectionService')
+const { Ollama } = require("ollama");
 
-const show = async () => {
+const ollama = new Ollama();
 
-    const result = await ShotDetectionService.buildShots([
-        6.133,
-        7.3,
-        8.4,
-        8.5,
-        9.7
-    ], 10)
+(async () => {
+    const response = await ollama.chat({
+        model: "qwen3:4b",
+        messages: [
+            {
+                role: "system",
+                content: "You are a helpful assistant."
+            },
+            {
+                role: "user",
+                content: JSON.stringify({
+                    movie: {
+                        title: "Bride of Chucky",
+                        genres: ["Horror", "Comedy"]
+                    },
+                    characters: [
+                        { id: "C1", name: "Chucky" },
+                        { id: "C2", name: "Tiffany" }
+                    ],
+                    chunk: {
+                        timeline: {
+                            start: 0,
+                            end: 180
+                        },
+                        transcript: []
+                    }
+                })
+            }
+        ]
+    });
 
-    console.log(result)
-
-}
-
-show()
+    console.log(response.message.content);
+})();
