@@ -1,22 +1,21 @@
-const PromptBuilderService = require("./PromptBuilderService");
-const LLMService = require("./LLMService");
+const ChunkPromptBuilderService = require("./ChunkPromptBuilderService");
+const DeepSeekService = require('./DeepSeekService')
 
 class ChunkAnalysisService {
-    async analyze({ chunk, movie, characters }) {
+    async analyze({ chunk, movie, visualAnalysis }) {
 
-        const prompt = PromptBuilderService.build({
+        const { system, user } = ChunkPromptBuilderService.build({
             chunk,
             movie,
-            characters
+            visualAnalysis
         });
 
         console.log({
-            systemLength: prompt.system.length,
-            userLength: prompt.user.length,
-            imageCount: prompt.images.length
+            systemLength: system.length,
+            userLength: user.length
         });
 
-        const response = await LLMService.generate(prompt);
+        const response = await DeepSeekService.generate({ system, user });
 
 
         console.log("\n========== RAW LLM RESPONSE ==========\n");

@@ -1,15 +1,20 @@
-const { Ollama } = require("ollama");
-
-const ollama = new Ollama({
-    host: "http://127.0.0.1:11434",
-});
+const fs = require("fs").promises;
+const axios = require("axios")
 
 class LLMService {
+
     constructor() {
+        this.host = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
         this.model = process.env.OLLAMA_MODEL;
     }
 
-    async generate({ system, user, images = [] }) {
+    async generate(prompt) {
+
+        const {
+            system,
+            user,
+            images = []
+        } = prompt;
 
         console.log(
             `Sending ${Buffer.byteLength(user, "utf8")} bytes to ${this.model}`
@@ -21,50 +26,124 @@ class LLMService {
             imageCount: images.length
         });
 
+        let payload;
+
         try {
-            const response = await ollama.chat({
-                model: this.model,
-                messages: this.buildMessages({
-                    system,
-                    user,
-                    images
-                }),
-                stream: true,
-                format: "json",
+            console.log("1");
+
+            payload = await this.buildPayload({
+                system,
+                user,
+                images
+            })
+
+            console.log("2");
+
+            const started = Date.now()
+
+            const response = await axios.post(
+                `${this.host}/api/chat`,
+                payload,
+                {
+                    timeout: 1000 * 60 * 20,
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity
+                }
+            );
+
+            console.log("3");
+
+            console.log(
+                `LLM completed in ${((Date.now() - started) / 1000).toFixed(2)}s`
+            );
+
+            console.dir(payload, {
+                depth: null
             });
 
-            let content = "";
+            console.log("4");
 
-            for await (const part of response) {
-                if (part.message?.content) {
-                    content += part.message.content;
-                }
-            }
+            return response.data.message;
 
-            return content;
         } catch (err) {
-            console.error("Messages being sent:");
-            console.dir(this.buildMessages({ system, user, images }), { depth: null });
+
+            console.error("===== OLLAMA ERROR =====");
+
+            console.error(err);
+
+            console.dir(err, {
+                depth: null
+            });
+
+            console.error("===== REQUEST PAYLOAD =====");
+
+            console.dir(payload, {
+                depth: null
+            });
 
             throw err;
         }
     }
 
-    buildMessages({ system, user, images }) {
-        return [
-            {
-                role: "system",
-                content: system
+    async buildPayload({
+        system,
+        user,
+        images
+    }) {
+
+        const encodedImages =
+            await this.encodeImages(images);
+
+        return {
+
+            model: this.model,
+
+            think: false,
+
+            stream: false,
+
+            options: {
+                num_predict: 2048
             },
-            {
-                role: "user",
-                content: user,
-                images
-            }
-        ];
+
+            messages: [
+
+                {
+                    role: "system",
+                    content: system
+                },
+
+                {
+                    role: "user",
+                    content: user,
+                    images: encodedImages
+                }
+
+            ]
+
+        };
+
+    }
+
+    async encodeImages(imagePaths) {
+
+        const images = [];
+
+        for (const imagePath of imagePaths) {
+
+            const buffer =
+                await fs.readFile(imagePath);
+
+            images.push(
+                buffer.toString("base64")
+            );
+
+        }
+
+        return images;
+
     }
 
 }
-
 
 module.exports = new LLMService();

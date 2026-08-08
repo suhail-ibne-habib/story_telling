@@ -23,52 +23,17 @@ class PromptBuilderService {
 
     static buildSystemPrompt() {
         return `
-        You are an expert movie scene analyst.
+            You are analyzing a movie scene.
 
-        Your task is to analyze ONE chronological movie chunk.
+            Use the transcript and attached images.
 
-        You will receive:
+            Return only this JSON:
 
-        - Movie metadata
-        - Known characters
-        - A transcript for this chunk
-        - Representative images attached separately
-
-        Analyze ONLY the provided chunk.
-
-        Guidelines:
-
-        - Use both the transcript and the images.
-        - Never invent information.
-        - If something cannot be determined, return null.
-        - Preserve chronological order.
-        - Base every conclusion only on the provided evidence.
-        - Ignore insignificant dialogue and background conversation.
-        - Do not explain your reasoning.
-        - Do not write markdown.
-        - Return ONLY valid JSON.
-
-        Your goal is NOT to recap the movie.
-
-        Your goal is to extract the important story information contained in this chunk.
-
-        Return JSON in exactly this format:
-
-        {
-        "summary": "A concise summary (2-4 sentences).",
-
-        "events": [
             {
-            "id": "E001",
-            "time": 0,
-            "importance": "high",
-            "description": "",
-            "characters": [],
-            "objects": [],
-            "location": null
+            "summary": ""
             }
-        ]
-        }
+
+            Limit the summary to three sentences.
         `.trim();
     }
 

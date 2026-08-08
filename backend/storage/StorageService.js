@@ -26,6 +26,7 @@ class StorageService {
             frames: path.join(root, "frames"),
             chunks: path.join(root, "chunks"),
             contactSheets: path.join(root, 'contact_sheets'),
+            visualAnalysis: path.join(root, "visual_analysis"),
             chunkAnalysis: path.join(root, "chunk-analysis"),
             characters: path.join(root, "characters"),
             events: path.join(root, "events")

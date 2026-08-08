@@ -28,8 +28,20 @@ module.exports = {
     CONTACT_SHEETS_COMPLETED: "contact_sheets_completed",
     CONTACT_SHEETS_FAILED: "contact_sheets_failed",
 
+    VISION_ANALYZE_COMPLETED: "vision.analysis.completed",
+    VISION_ANALYZE_FAILED: "vision.analysis.failed",
+
     CHUNK_ANALYSIS_COMPLETED: "chunks.analysis.completed",
     CHUNK_ANALYSIS_FAILED: "chunks.analysis.failed",
+
+    FULL_MOVIE_UNDERSTANDING_COMPLETED: 'full_movie_understanding_completed',
+    FULL_MOVIE_UNDERSTANDING_FAILED: 'full_movie_understanding_failed',
+
+    CLIP_PLANNING_COMPLETED: "clip.planning.completed",
+    CLIP_PLANNING_FAILED: "clip.planning.failed",
+
+    CLIP_EXTRACTION_COMPLETED: "clip_extraction_completed",
+    CLIP_EXTRACTION_FAILED: "clip_extraction_failed",
 
     EVENT_CANDIDATES_COMPLETED: "event.candidates.completed",
     EVENT_CANDIDATES_FAILED: "event.candidates.failed",

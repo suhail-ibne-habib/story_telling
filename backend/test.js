@@ -4,34 +4,18 @@ const ollama = new Ollama();
 
 (async () => {
     const response = await ollama.chat({
-        model: "qwen3:4b",
+        model: "qwen3-vl:8b",
+        stream: false,
+        think: false,
         messages: [
             {
-                role: "system",
-                content: "You are a helpful assistant."
-            },
-            {
                 role: "user",
-                content: JSON.stringify({
-                    movie: {
-                        title: "Bride of Chucky",
-                        genres: ["Horror", "Comedy"]
-                    },
-                    characters: [
-                        { id: "C1", name: "Chucky" },
-                        { id: "C2", name: "Tiffany" }
-                    ],
-                    chunk: {
-                        timeline: {
-                            start: 0,
-                            end: 180
-                        },
-                        transcript: []
-                    }
-                })
+                content: "Reply with exactly: Hello"
             }
         ]
     });
+
+    console.dir(response, { depth: null });
 
     console.log(response.message.content);
 })();
