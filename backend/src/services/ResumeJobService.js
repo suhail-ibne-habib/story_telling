@@ -28,16 +28,18 @@ class ResumeJobService {
             STAGES.VISION_ANALYSIS,
             STAGES.CHUNK_ANALYSIS,
             STAGES.FULL_MOVIE_UNDERSTANDING,
-            STAGES.CLIP_PLANNING,
+            STAGES.STORY_BEAT_PLANNING,
+            STAGES.SHOT_MAPPING,
             STAGES.CLIP_EXTRACTION
-            // future stages...
         ];
 
         // 3. Determine stage
         let stage = progress.currentStage;
 
-        // If there is no currently running stage,
-        // find the first stage that isn't completed.
+        /*
+         * If there is no currently running stage,
+         * find the first stage that is not completed.
+         */
         if (!stage) {
 
             for (const pipelineStage of PIPELINE_STAGES) {
@@ -54,8 +56,9 @@ class ResumeJobService {
             }
         }
 
-        // 4. Everything is already completed
+        // 4. Everything is completed
         if (!stage) {
+
             throw new Error(
                 `Job ${jobId} has already completed all pipeline stages.`
             );
@@ -65,9 +68,24 @@ class ResumeJobService {
             `[ResumeJob] Resuming from stage: ${stage}`
         );
 
-        // 5. Trigger the worker responsible for that stage
+        /*
+         * 5. Trigger the worker responsible for the stage.
+         *
+         * IMPORTANT:
+         *
+         * We don't directly call workers here.
+         * We publish the event that normally starts
+         * that worker.
+         */
+
         switch (stage) {
 
+            /*
+             * Vision Analysis Worker
+             *
+             * Trigger:
+             * CONTACT_SHEETS_COMPLETED
+             */
             case STAGES.VISION_ANALYSIS:
 
                 EventBus.publish(
@@ -78,6 +96,12 @@ class ResumeJobService {
                 break;
 
 
+            /*
+             * Chunk Analysis Worker
+             *
+             * Trigger:
+             * VISION_ANALYZE_COMPLETED
+             */
             case STAGES.CHUNK_ANALYSIS:
 
                 EventBus.publish(
@@ -88,6 +112,12 @@ class ResumeJobService {
                 break;
 
 
+            /*
+             * Full Movie Understanding Worker
+             *
+             * Trigger:
+             * CHUNK_ANALYSIS_COMPLETED
+             */
             case STAGES.FULL_MOVIE_UNDERSTANDING:
 
                 EventBus.publish(
@@ -98,7 +128,13 @@ class ResumeJobService {
                 break;
 
 
-            case STAGES.CLIP_PLANNING:
+            /*
+             * Story Beat Planning Worker
+             *
+             * Trigger:
+             * FULL_MOVIE_UNDERSTANDING_COMPLETED
+             */
+            case STAGES.STORY_BEAT_PLANNING:
 
                 EventBus.publish(
                     events.FULL_MOVIE_UNDERSTANDING_COMPLETED,
@@ -107,11 +143,35 @@ class ResumeJobService {
 
                 break;
 
-            case STAGES.CLIP_EXTRACTION:
+
+            /*
+             * Shot Mapping Worker
+             *
+             * Trigger:
+             * STORY_BEAT_PLANNING_COMPLETED
+             */
+            case STAGES.SHOT_MAPPING:
+
                 EventBus.publish(
-                    events.CLIP_PLANNING_COMPLETED,
+                    events.STORY_BEAT_PLANNING_COMPLETED,
                     { jobId }
-                )
+                );
+
+                break;
+
+
+            /*
+             * Clip Extraction Worker
+             *
+             * Trigger:
+             * SHOT_MAPPING_COMPLETED
+             */
+            case STAGES.CLIP_EXTRACTION:
+
+                EventBus.publish(
+                    events.SHOT_MAPPING_COMPLETED,
+                    { jobId }
+                );
 
                 break;
 

@@ -1,45 +1,119 @@
-const EventBus = require("../core/EventBus");
-const events = require("../events/events");
-const Storage = require("../../storage/StorageService");
-const ProgressService = require("../services/ProgressService");
-const ClipExtractionService = require("../services/ClipExtractionService");
-const STAGES = require("../constance/pipelineStages");
-const path = require("path");
-const fs = require("fs");
-const JobService = require("../services/JobService");
+const EventBus =
+    require("../core/EventBus");
+
+const events =
+    require("../events/events");
+
+const Storage =
+    require("../../storage/StorageService");
+
+const ProgressService =
+    require("../services/ProgressService");
+
+const ClipExtractionService =
+    require("../services/ClipExtractionService");
+
+const STAGES =
+    require("../constance/pipelineStages");
+
+const path =
+    require("path");
+
+const fs =
+    require("fs");
 
 
 EventBus.subscribe(
-    events.CLIP_PLANNING_COMPLETED,
+    events.SHOT_MAPPING_COMPLETED,
 
     async ({ jobId }) => {
 
         try {
 
             console.log(
+                "\n=========================================="
+            );
+
+            console.log(
                 "Clip Extraction Worker is running..."
             );
+
+            console.log(
+                "Job ID:",
+                jobId
+            );
+
+            console.log(
+                "==========================================\n"
+            );
+
+
+            // -----------------------------------------
+            // Start stage
+            // -----------------------------------------
 
             await ProgressService.startStage(
                 jobId,
                 STAGES.CLIP_EXTRACTION
             );
 
-
-            const paths = Storage.getPaths(jobId);
-
-            /*
-             * Source movie
-             */
-
-            const moviePath = Storage.getInputMovie("Bride of Chucky.webm")
-
-            console.log("Movie Path: ", moviePath)
+            console.log(
+                "[ClipExtraction] Stage started."
+            );
 
 
-            /*
-             * Clip plan
-             */
+            // -----------------------------------------
+            // Storage paths
+            // -----------------------------------------
+
+            const paths =
+                Storage.getPaths(jobId);
+
+
+            console.log(
+                "[ClipExtraction] Storage paths loaded."
+            );
+
+
+            // -----------------------------------------
+            // Source movie
+            //
+            // TEMPORARY:
+            // We are hardcoding the movie filename
+            // until JobService/database persistence
+            // is implemented.
+            // -----------------------------------------
+
+            const moviePath =
+                Storage.getInputMovie(
+                    "The Isolate Thief.mp4"
+                );
+
+
+            console.log(
+                "[ClipExtraction] Source movie:",
+                moviePath
+            );
+
+
+            // -----------------------------------------
+            // Verify source movie
+            // -----------------------------------------
+
+            if (
+                !fs.existsSync(moviePath)
+            ) {
+
+                throw new Error(
+                    `Source movie not found: ${moviePath}`
+                );
+
+            }
+
+
+            // -----------------------------------------
+            // Clip plan
+            // -----------------------------------------
 
             const clipPlanPath =
                 path.join(
@@ -51,6 +125,22 @@ EventBus.subscribe(
             console.log(
                 "[ClipExtraction] Reading clip plan..."
             );
+
+            console.log(
+                "[ClipExtraction] Clip plan:",
+                clipPlanPath
+            );
+
+
+            if (
+                !fs.existsSync(clipPlanPath)
+            ) {
+
+                throw new Error(
+                    `clip_plan.json not found: ${clipPlanPath}`
+                );
+
+            }
 
 
             const clipPlanRaw =
@@ -65,8 +155,8 @@ EventBus.subscribe(
 
 
             if (
-                !clipPlan.clips ||
-                !clipPlan.clips.length
+                !Array.isArray(clipPlan.clips) ||
+                clipPlan.clips.length === 0
             ) {
 
                 throw new Error(
@@ -76,9 +166,14 @@ EventBus.subscribe(
             }
 
 
-            /*
-             * Output directory
-             */
+            console.log(
+                `[ClipExtraction] Total clips: ${clipPlan.clips.length}`
+            );
+
+
+            // -----------------------------------------
+            // Output directory
+            // -----------------------------------------
 
             const outputDirectory =
                 path.join(
@@ -95,26 +190,88 @@ EventBus.subscribe(
             );
 
 
-            console.log({
-                clipCount:
-                    clipPlan.clips.length
-            });
+            console.log(
+                "[ClipExtraction] Output directory:",
+                outputDirectory
+            );
 
 
-            /*
-             * Extract clips one by one
-             */
+            // -----------------------------------------
+            // Extract clips
+            // -----------------------------------------
 
-            for (const clip of clipPlan.clips) {
+            let completedCount = 0;
+
+
+            for (
+                const clip of clipPlan.clips
+            ) {
 
                 console.log(
-                    `\n[ClipExtraction] Processing ${clip.id}`
+                    "\n------------------------------------------"
+                );
+
+                console.log(
+                    `[ClipExtraction] Processing ${clip.id}`
+                );
+
+                console.log(
+                    `Start: ${clip.start}s`
+                );
+
+                console.log(
+                    `End: ${clip.end}s`
                 );
 
 
-                /*
-                 * Resume check
-                 */
+                // -----------------------------------------
+                // Validate clip
+                // -----------------------------------------
+
+                if (
+                    !clip.id
+                ) {
+
+                    throw new Error(
+                        "Clip is missing an id."
+                    );
+
+                }
+
+
+                if (
+                    typeof clip.start !== "number" ||
+                    typeof clip.end !== "number"
+                ) {
+
+                    throw new Error(
+                        `Invalid timestamps for ${clip.id}: ${clip.start} -> ${clip.end}`
+                    );
+
+                }
+
+
+                if (
+                    clip.end <= clip.start
+                ) {
+
+                    throw new Error(
+                        `Invalid duration for ${clip.id}: ${clip.start} -> ${clip.end}`
+                    );
+
+                }
+
+
+                const outputPath =
+                    path.join(
+                        outputDirectory,
+                        `${clip.id}.mp4`
+                    );
+
+
+                // -----------------------------------------
+                // Progress check
+                // -----------------------------------------
 
                 const completed =
                     await ProgressService.isClipCompleted(
@@ -127,45 +284,63 @@ EventBus.subscribe(
                 if (completed) {
 
                     console.log(
-                        `[ClipExtraction] Skipping completed clip ${clip.id}`
+                        `[ClipExtraction] Progress already completed: ${clip.id}`
                     );
 
+                    completedCount++;
+
                     continue;
+
                 }
 
 
-                const outputPath =
-                    path.join(
-                        outputDirectory,
-                        `${clip.id}.mp4`
-                    );
+                // -----------------------------------------
+                // File-level resume protection
+                // -----------------------------------------
+
+                if (
+                    fs.existsSync(outputPath)
+                ) {
+
+                    const stats =
+                        await fs.promises.stat(
+                            outputPath
+                        );
 
 
-                /*
-                 * File-level safety check
-                 */
+                    if (
+                        stats.size > 0
+                    ) {
 
-                // if (
-                //     fs.existsSync(outputPath)
-                // ) {
-
-                //     console.log(
-                //         `[ClipExtraction] Output already exists: ${clip.id}`
-                //     );
-
-                //     await ProgressService.completeClip(
-                //         jobId,
-                //         STAGES.CLIP_EXTRACTION,
-                //         clip.id
-                //     );
-
-                //     continue;
-                // }
+                        console.log(
+                            `[ClipExtraction] Output already exists: ${clip.id}`
+                        );
 
 
-                /*
-                 * Extract
-                 */
+                        await ProgressService.completeClip(
+                            jobId,
+                            STAGES.CLIP_EXTRACTION,
+                            clip.id
+                        );
+
+
+                        completedCount++;
+
+                        continue;
+
+                    }
+
+                }
+
+
+                // -----------------------------------------
+                // Extract
+                // -----------------------------------------
+
+                console.log(
+                    `[ClipExtraction] Sending ${clip.id} to FFmpeg...`
+                );
+
 
                 await ClipExtractionService.extract({
 
@@ -183,9 +358,9 @@ EventBus.subscribe(
                 });
 
 
-                /*
-                 * Mark completed
-                 */
+                // -----------------------------------------
+                // Mark clip completed
+                // -----------------------------------------
 
                 await ProgressService.completeClip(
                     jobId,
@@ -194,16 +369,73 @@ EventBus.subscribe(
                 );
 
 
+                completedCount++;
+
+
                 console.log(
-                    `[ClipExtraction] ${clip.id} completed`
+                    `[ClipExtraction] ${clip.id} completed successfully.`
+                );
+
+                console.log(
+                    `[ClipExtraction] Progress: ${completedCount}/${clipPlan.clips.length}`
                 );
 
             }
 
 
-            /*
-             * Stage completed
-             */
+            // -----------------------------------------
+            // Final verification
+            // -----------------------------------------
+
+            console.log(
+                "\n[ClipExtraction] Verifying extracted clips..."
+            );
+
+
+            for (
+                const clip of clipPlan.clips
+            ) {
+
+                const outputPath =
+                    path.join(
+                        outputDirectory,
+                        `${clip.id}.mp4`
+                    );
+
+
+                if (
+                    !fs.existsSync(outputPath)
+                ) {
+
+                    throw new Error(
+                        `Clip extraction incomplete. Missing: ${clip.id}`
+                    );
+
+                }
+
+
+                const stats =
+                    await fs.promises.stat(
+                        outputPath
+                    );
+
+
+                if (
+                    stats.size === 0
+                ) {
+
+                    throw new Error(
+                        `Clip extraction incomplete. Empty file: ${clip.id}`
+                    );
+
+                }
+
+            }
+
+
+            // -----------------------------------------
+            // Complete stage
+            // -----------------------------------------
 
             await ProgressService.completeStage(
                 jobId,
@@ -212,9 +444,25 @@ EventBus.subscribe(
 
 
             console.log(
+                "\n=========================================="
+            );
+
+            console.log(
                 "Clip Extraction Completed"
             );
 
+            console.log(
+                `Extracted: ${completedCount}/${clipPlan.clips.length}`
+            );
+
+            console.log(
+                "==========================================\n"
+            );
+
+
+            // -----------------------------------------
+            // Publish next event
+            // -----------------------------------------
 
             EventBus.publish(
                 events.CLIP_EXTRACTION_COMPLETED,
@@ -227,10 +475,30 @@ EventBus.subscribe(
         } catch (error) {
 
             console.error(
-                "Clip Extraction Worker Failed",
+                "\n=========================================="
+            );
+
+            console.error(
+                "CLIP EXTRACTION WORKER FAILED"
+            );
+
+            console.error(
+                "Job ID:",
+                jobId
+            );
+
+            console.error(
                 error
             );
 
+            console.error(
+                "==========================================\n"
+            );
+
+
+            // -----------------------------------------
+            // Fail stage
+            // -----------------------------------------
 
             await ProgressService.failStage(
                 jobId,
@@ -238,6 +506,10 @@ EventBus.subscribe(
                 error.message
             );
 
+
+            // -----------------------------------------
+            // Publish failure event
+            // -----------------------------------------
 
             EventBus.publish(
                 events.CLIP_EXTRACTION_FAILED,
@@ -250,4 +522,5 @@ EventBus.subscribe(
         }
 
     }
+
 );

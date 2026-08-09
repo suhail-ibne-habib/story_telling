@@ -23,11 +23,12 @@ require("./workers/ShotDetectionWorker");
 require("./workers/FrameExtractionWorker");
 require("./workers/ChunkBuilderWorker")
 require('./workers/ContactSheetWorker')
-require('./workers/VisionAnalysisWorker')
-require("./workers/ChunkAnalysisWorker")
-require('./workers/MovieUnderstandingWorker')
-require('./workers/ClipPlanningWorker')
-require("./workers/ClipExtractionWorker")
+// require('./workers/VisionAnalysisWorker')
+// require("./workers/ChunkAnalysisWorker")
+// require('./workers/MovieUnderstandingWorker')
+// require('./workers/StoryBeatPlanningWorker')
+// require('./workers/ShotMappingWorker')
+// require('./workers/ClipExtractionWorker')
 
 
 /*

@@ -37,8 +37,11 @@ module.exports = {
     FULL_MOVIE_UNDERSTANDING_COMPLETED: 'full_movie_understanding_completed',
     FULL_MOVIE_UNDERSTANDING_FAILED: 'full_movie_understanding_failed',
 
-    CLIP_PLANNING_COMPLETED: "clip.planning.completed",
-    CLIP_PLANNING_FAILED: "clip.planning.failed",
+    STORY_BEAT_PLANNING_COMPLETED: 'story_beat_planning_completed',
+    STORY_BEAT_PLANNING_FAILED: 'story_beat_planning_failed',
+
+    SHOT_MAPPING_COMPLETED: "shot.mapping.completed",
+    SHOT_MAPPING_FAILED: "shot.mapping.failed",
 
     CLIP_EXTRACTION_COMPLETED: "clip_extraction_completed",
     CLIP_EXTRACTION_FAILED: "clip_extraction_failed",

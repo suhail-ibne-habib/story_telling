@@ -74,6 +74,87 @@ class JobService {
 
     }
 
+    async saveFilename(jobId, filename) {
+
+        if (!filename) {
+            throw new Error(
+                "Filename is required."
+            );
+        }
+
+        const paths =
+            StorageService.getPaths(jobId);
+
+        await fs.promises.mkdir(
+            paths.metadata,
+            {
+                recursive: true
+            }
+        );
+
+        const filePath =
+            path.join(
+                paths.metadata,
+                "movie_file.json"
+            );
+
+        await fs.promises.writeFile(
+            filePath,
+            JSON.stringify(
+                {
+                    filename
+                },
+                null,
+                2
+            ),
+            "utf-8"
+        );
+
+        console.log(
+            `[JobService] Movie filename saved: ${filename}`
+        );
+
+        return filename;
+    }
+
+
+    async getFilename(jobId) {
+
+        const paths =
+            StorageService.getPaths(jobId);
+
+        const filePath =
+            path.join(
+                paths.metadata,
+                "movie_file.json"
+            );
+
+        if (!fs.existsSync(filePath)) {
+
+            throw new Error(
+                `Movie filename not found for job ${jobId}`
+            );
+        }
+
+        const raw =
+            await fs.promises.readFile(
+                filePath,
+                "utf-8"
+            );
+
+        const data =
+            JSON.parse(raw);
+
+        if (!data.filename) {
+
+            throw new Error(
+                `Movie filename is missing for job ${jobId}`
+            );
+        }
+
+        return data.filename;
+    }
+
 
 }
 

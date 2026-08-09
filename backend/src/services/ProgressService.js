@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-
-const Storage = require("../../storage/StorageService");
+const JobService = require("./JobService");
 
 class ProgressService {
 
@@ -25,8 +24,11 @@ class ProgressService {
             return;
         }
 
+        const job = await JobService.get(jobId)
+
         const progress = {
             jobId,
+            filename: job.filename,
             status: "running",
             currentStage: null,
             stages: {}
@@ -78,8 +80,13 @@ class ProgressService {
 
     async startStage(jobId, stageName) {
 
-        const progress =
-            await this.load(jobId);
+        const progress = await this.load(jobId);
+
+        if (!progress) {
+            throw new Error(
+                `Progress not found for job: ${jobId}`
+            )
+        }
 
         progress.status = "running";
         progress.currentStage = stageName;
