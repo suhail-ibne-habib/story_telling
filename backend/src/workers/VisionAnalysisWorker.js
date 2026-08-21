@@ -12,6 +12,12 @@ const VisionAnalysisService = require(
 const ProgressService = require("../services/ProgressService")
 const STAGES = require("../constance/pipelineStages")
 
+const API_DELAY_MS = 5000;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 EventBus.subscribe(
     events.CONTACT_SHEETS_COMPLETED,
     async ({ jobId }) => {
@@ -88,7 +94,7 @@ EventBus.subscribe(
 
                     const outputPath = path.join(
                         outputDirectory,
-                        `${contactSheet.id.toLowerCase()}.txt`
+                        `${contactSheet.id.toLowerCase()}.json`
                     )
 
                     // if (
@@ -140,6 +146,8 @@ EventBus.subscribe(
                         chunk.id
                     )
                 }
+
+                await sleep(API_DELAY_MS);
 
             }
 

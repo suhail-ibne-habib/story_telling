@@ -83,44 +83,6 @@ EventBus.subscribe(
 
 
             /*
-             * Resume Protection
-             *
-             * If story_beats.json already exists,
-             * don't call DeepSeek again.
-             */
-
-            if (
-                fs.existsSync(outputPath)
-            ) {
-
-                console.log(
-                    "story_beats.json already exists."
-                );
-
-                console.log(
-                    "Skipping Story Beat Planning."
-                );
-
-
-                await ProgressService.completeStage(
-                    jobId,
-                    STAGES.STORY_BEAT_PLANNING
-                );
-
-
-                EventBus.publish(
-                    events.STORY_BEAT_PLANNING_COMPLETED,
-                    {
-                        jobId
-                    }
-                );
-
-
-                return;
-            }
-
-
-            /*
              * Reading Movie File
              */
 
@@ -307,11 +269,8 @@ EventBus.subscribe(
 
             const result =
                 await StoryBeatPlanningService.analyze({
-
                     movie,
-
                     movieUnderstanding,
-
                     chunkContexts
 
                 });
@@ -320,6 +279,10 @@ EventBus.subscribe(
             console.log(
                 "DeepSeek story beat planning completed."
             );
+
+            console.log("\n========== RAW STORY BEAT RESULT ==========\n");
+            console.log(result);
+            console.log("\n============================================\n");
 
 
             /*
@@ -409,7 +372,7 @@ EventBus.subscribe(
             ) {
 
                 if (
-                    !beat.chunkId
+                    !beat.chunkIds
                 ) {
 
                     throw new Error(
@@ -418,17 +381,10 @@ EventBus.subscribe(
 
                 }
 
-
-                if (
-                    !availableChunkIds.has(
-                        beat.chunkId.toLowerCase()
-                    )
-                ) {
-
-                    throw new Error(
-                        `Story beat ${beat.id || "unknown"} references unknown chunk: ${beat.chunkId}`
-                    );
-
+                for (const chunkId of beat.chunkIds) {
+                    if (!availableChunkIds.has(chunkId.toLowerCase())) {
+                        throw new Error(`Story beat ${beat.id || "unknown"} references unknown chunk: ${chunkId}`);
+                    }
                 }
 
             }

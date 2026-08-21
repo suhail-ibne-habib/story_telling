@@ -11,6 +11,7 @@
     "server": "nodemon ./index.js"
   },
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.64.0",
     "axios": "^1.19.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

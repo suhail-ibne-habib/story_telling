@@ -92,7 +92,7 @@ EventBus.subscribe(
                 visualAnalysisFiles = visualAnalysisFiles.sort()
 
                 for (const file of visualAnalysisFiles) {
-                    if (!file.endsWith(".txt")) {
+                    if (!file.endsWith(".json")) {
                         continue;
                     }
 

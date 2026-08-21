@@ -10,8 +10,8 @@ const Storage =
 const ProgressService =
     require("../services/ProgressService");
 
-const ClipExtractionService =
-    require("../services/ClipExtractionService");
+const VoiceGenerationService =
+    require("../services/VoiceGenerationService");
 
 const STAGES =
     require("../constance/pipelineStages");
@@ -22,19 +22,9 @@ const path =
 const fs =
     require("fs");
 
-const FileName = require('../core/GetFileName')
-
-const getRoot = () => {
-    return path.join(
-        process.cwd(),
-        "storage",
-        "jobs"
-    );
-}
-
 
 EventBus.subscribe(
-    events.SHOT_MAPPING_COMPLETED,
+    events.SCRIPT_GENERATION_COMPLETED,
 
     async ({ jobId }) => {
 
@@ -45,7 +35,7 @@ EventBus.subscribe(
             );
 
             console.log(
-                "Clip Extraction Worker is running..."
+                "Voice Generation Worker is running..."
             );
 
             console.log(
@@ -53,11 +43,23 @@ EventBus.subscribe(
             );
 
 
+            /*
+             * -----------------------------------------
+             * Start stage
+             * -----------------------------------------
+             */
+
             await ProgressService.startStage(
                 jobId,
-                STAGES.CLIP_EXTRACTION
+                STAGES.VOICE_GENERATION
             );
 
+
+            /*
+             * -----------------------------------------
+             * Storage
+             * -----------------------------------------
+             */
 
             const paths =
                 Storage.getPaths(jobId);
@@ -65,24 +67,18 @@ EventBus.subscribe(
 
             /*
              * -----------------------------------------
-             * Original movie
+             * Script directory
              * -----------------------------------------
-             *
-             * Change this path if your movie is stored
-             * somewhere else in StorageService.
              */
 
-            const movieFileName =
-                await FileName.getFileName(jobId);
-
-            const moviePath =
-                Storage.getInputMovie(movieFileName);
+            const scriptDirectory =
+                paths.scripts;
 
 
-            if (!moviePath) {
+            if (!scriptDirectory) {
 
                 throw new Error(
-                    "Storage paths.movie is not configured."
+                    "Storage paths.scripts is not configured."
                 );
 
             }
@@ -90,67 +86,25 @@ EventBus.subscribe(
 
             /*
              * -----------------------------------------
-             * Shot mapping
+             * Voice output directory
              * -----------------------------------------
              */
 
-            const shotMappingPath =
-                path.join(
-                    paths.shotMapping,
-                    "shot_mapping.json"
-                );
+            const voiceDirectory =
+                paths.voice;
 
 
-            const mappingRaw =
-                await fs.promises.readFile(
-                    shotMappingPath,
-                    "utf-8"
-                );
-
-
-            const shotMapping =
-                JSON.parse(mappingRaw);
-
-
-            const beats =
-                shotMapping.beats || [];
-
-
-            if (!beats.length) {
+            if (!voiceDirectory) {
 
                 throw new Error(
-                    "No shot mappings were found."
-                );
-
-            }
-
-
-            console.log(
-                `[ClipExtraction] Found ${beats.length} mapped beats.`
-            );
-
-
-            /*
-             * -----------------------------------------
-             * Output directory
-             * -----------------------------------------
-             */
-
-            const outputDirectory =
-                paths.clips || `${getRoot()}/${jobId}/clips`;
-
-
-            if (!outputDirectory) {
-
-                throw new Error(
-                    "Storage paths.clips is not configured."
+                    "Storage paths.voice is not configured."
                 );
 
             }
 
 
             await fs.promises.mkdir(
-                outputDirectory,
+                voiceDirectory,
                 {
                     recursive: true
                 }
@@ -159,38 +113,108 @@ EventBus.subscribe(
 
             /*
              * -----------------------------------------
-             * Process each beat
+             * Find script files
+             * -----------------------------------------
+             */
+
+            const files =
+                await fs.promises.readdir(
+                    scriptDirectory
+                );
+
+
+            const scriptFiles =
+                files.filter(
+                    file =>
+                        file.endsWith(".json") &&
+                        file !== "script_manifest.json"
+                );
+
+
+            if (!scriptFiles.length) {
+
+                throw new Error(
+                    "No script files were found."
+                );
+
+            }
+
+
+            console.log(
+                `[VoiceGeneration] Found ${scriptFiles.length} scripts.`
+            );
+
+
+            /*
+             * -----------------------------------------
+             * Process scripts
              * -----------------------------------------
              */
 
             const results = [];
 
 
-            for (const mapping of beats) {
+            for (
+                const file of scriptFiles
+            ) {
 
-                const beatId =
-                    mapping.beatId;
+                const scriptPath =
+                    path.join(
+                        scriptDirectory,
+                        file
+                    );
 
 
-                console.log(
-                    `\n[ClipExtraction] Processing ${beatId}`
-                );
+                const raw =
+                    await fs.promises.readFile(
+                        scriptPath,
+                        "utf8"
+                    );
+
+
+                let script =
+                    JSON.parse(raw);
 
 
                 /*
-                 * -------------------------------------
-                 * Get cut information
-                 * -------------------------------------
+                 * Handle double-encoded JSON.
                  */
+                if (typeof script === "string") {
 
-                const cut =
-                    mapping.cut;
+                    script =
+                        JSON.parse(script);
+
+                }
+
+                console.log(
+                    `[VoiceGeneration] Loaded ${file}:`,
+                    JSON.stringify(script, null, 2)
+                );
+
+                console.log(
+                    `[VoiceGeneration] script.beatId:`,
+                    script.beatId
+                );
+
+                console.log(
+                    `[VoiceGeneration] typeof script.beatId:`,
+                    typeof script.beatId
+                );
+
+                console.log(
+                    `[VoiceGeneration] keys:`,
+                    Object.keys(script)
+                );
 
 
-                if (!cut) {
+                const beatId =
+                    script.beatId;
+
+
+                if (!beatId) {
 
                     console.warn(
-                        `[ClipExtraction] ${beatId} has no cut information. Skipping.`
+                        `[VoiceGeneration] ${file} has no beatId. Skipping.`
                     );
 
                     continue;
@@ -198,62 +222,63 @@ EventBus.subscribe(
                 }
 
 
-                const startTime =
-                    cut.startTime;
+                const narration =
+                    script.narration;
 
 
-                const endTime =
-                    cut.endTime;
-
-
-                if (!startTime || !endTime) {
+                if (
+                    !narration ||
+                    !narration.trim()
+                ) {
 
                     console.warn(
-                        `[ClipExtraction] ${beatId} has invalid cut times. Skipping.`
+                        `[VoiceGeneration] ${beatId} has no narration. Skipping.`
                     );
 
                     continue;
 
                 }
+
+
+                console.log(
+                    `\n[VoiceGeneration] Processing ${beatId}`
+                );
 
 
                 console.log({
                     beatId,
-                    startTime,
-                    endTime,
-                    duration: cut.duration
+                    wordCount:
+                        script.wordCount,
+                    duration:
+                        script.duration
                 });
 
 
                 /*
                  * -------------------------------------
-                 * Output filename
+                 * Output audio
                  * -------------------------------------
                  */
 
                 const outputPath =
                     path.join(
-                        outputDirectory,
-                        `${beatId}.mp4`
+                        voiceDirectory,
+                        `${beatId}.mp3`
                     );
 
 
                 /*
                  * -------------------------------------
-                 * Extract clip
+                 * Generate voice
                  * -------------------------------------
                  */
 
-                await ClipExtractionService.extract({
+                await VoiceGenerationService.generate({
 
-                    inputPath:
-                        moviePath,
+                    text:
+                        narration,
 
-                    outputPath,
-
-                    startTime,
-
-                    endTime
+                    outputPath
 
                 });
 
@@ -268,20 +293,19 @@ EventBus.subscribe(
 
                     beatId,
 
-                    source: {
-                        startTime,
-                        endTime,
-                        duration:
-                            cut.duration ?? null
-                    },
+                    narration,
 
-                    output: outputPath
+                    wordCount:
+                        script.wordCount ?? null,
+
+                    output:
+                        outputPath
 
                 });
 
 
                 console.log(
-                    `[ClipExtraction] ${beatId} completed.`
+                    `[VoiceGeneration] ${beatId} completed.`
                 );
 
             }
@@ -289,14 +313,14 @@ EventBus.subscribe(
 
             /*
              * -----------------------------------------
-             * Save extraction manifest
+             * Save manifest
              * -----------------------------------------
              */
 
             const manifestPath =
                 path.join(
-                    outputDirectory,
-                    "clip_manifest.json"
+                    voiceDirectory,
+                    "voice_manifest.json"
                 );
 
 
@@ -305,15 +329,19 @@ EventBus.subscribe(
                 manifestPath,
 
                 JSON.stringify(
+
                     {
                         jobId,
-                        clips: results
+                        voices:
+                            results
                     },
+
                     null,
                     2
+
                 ),
 
-                "utf-8"
+                "utf8"
 
             );
 
@@ -326,7 +354,7 @@ EventBus.subscribe(
 
             await ProgressService.completeStage(
                 jobId,
-                STAGES.CLIP_EXTRACTION
+                STAGES.VOICE_GENERATION
             );
 
 
@@ -335,7 +363,7 @@ EventBus.subscribe(
             );
 
             console.log(
-                "Clip Extraction Completed"
+                "Voice Generation Completed"
             );
 
             console.log(
@@ -351,7 +379,7 @@ EventBus.subscribe(
 
             EventBus.publish(
 
-                events.CLIP_EXTRACTION_COMPLETED,
+                events.VOICE_GENERATION_COMPLETED,
 
                 {
                     jobId
@@ -367,7 +395,7 @@ EventBus.subscribe(
             );
 
             console.error(
-                "CLIP EXTRACTION WORKER FAILED"
+                "VOICE GENERATION WORKER FAILED"
             );
 
             console.error(
@@ -393,7 +421,7 @@ EventBus.subscribe(
 
                 jobId,
 
-                STAGES.CLIP_EXTRACTION,
+                STAGES.VOICE_GENERATION,
 
                 error.message
 
@@ -402,7 +430,7 @@ EventBus.subscribe(
 
             EventBus.publish(
 
-                events.CLIP_EXTRACTION_FAILED,
+                events.VOICE_GENERATION_FAILED,
 
                 {
                     jobId,
@@ -416,5 +444,4 @@ EventBus.subscribe(
         }
 
     }
-
 );

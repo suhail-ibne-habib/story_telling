@@ -48,4 +48,31 @@ module.exports = {
 
     EVENT_CANDIDATES_COMPLETED: "event.candidates.completed",
     EVENT_CANDIDATES_FAILED: "event.candidates.failed",
+
+    /*
+     * Script generation
+     */
+
+    SCRIPT_GENERATION_COMPLETED: "script.generation.completed",
+    SCRIPT_GENERATION_FAILED: "script.generation.failed",
+
+    /*
+     * Narration
+     */
+
+    NARRATION_COMPLETED: "narration.completed",
+    NARRATION_FAILED: "narration.failed",
+
+    VOICE_GENERATION_COMPLETED: "voice.generation.completed",
+    VOICE_GENERATION_FAILED: "voice.generation.failed",
+
+    /*
+     * Final rendering
+     */
+
+    VIDEO_RENDER_COMPLETED: "video.render.completed",
+    VIDEO_RENDER_FAILED: "video.render.failed",
+
+    VIDEO_ASSEMBLY_COMPLETED: "video.assembly.completed",
+    VIDEO_ASSEMBLY_FAILED: "video.assembly.failed"
 };

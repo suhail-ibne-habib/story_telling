@@ -1,8 +1,6 @@
 const StorageService = require("../../storage/StorageService");
 const EventBus = require("../core/EventBus");
 const events = require("../events/events");
-
-const JobService = require("../services/JobService");
 const ProgressService = require("../services/ProgressService");
 const FFprobeService = require("../services/FFprobeService");
 
@@ -10,6 +8,8 @@ const STAGES = require("../constance/pipelineStages");
 
 const path = require("path");
 const fs = require("fs");
+
+const GetFileName = require("../core/GetFileName");
 
 
 EventBus.subscribe(
@@ -109,9 +109,12 @@ EventBus.subscribe(
              * 9. Get input movie
              */
 
+            const filename =
+                await GetFileName.getFileName(jobId);
+
             const inputMoviePath =
                 StorageService.getInputMovie(
-                    job.filename
+                    filename
                 );
 
 

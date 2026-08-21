@@ -101,8 +101,8 @@ class MovieUnderstandingPromptBuilderService {
                 "id": "",
                 "name": "",
                 "description": "",
-                "startTime": null,
-                "endTime": null,
+                "startTime": "hh:mm:ss",
+                "endTime": "hh:mm:ss",
                 "events": []
             }
         ],
@@ -122,7 +122,7 @@ class MovieUnderstandingPromptBuilderService {
         "turningPoints": [
             {
                 "id": "",
-                "time": null,
+                "time": "hh:mm:ss",
                 "description": "",
                 "whyItMatters": ""
             }

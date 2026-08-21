@@ -28,8 +28,12 @@ class StorageService {
             contactSheets: path.join(root, 'contact_sheets'),
             visualAnalysis: path.join(root, "visual_analysis"),
             chunkAnalysis: path.join(root, "chunk-analysis"),
+            shotMapping: path.join(root, 'shot-mappings'),
+            scripts: path.join(root, "scrips"),
             characters: path.join(root, "characters"),
-            events: path.join(root, "events")
+            events: path.join(root, "events"),
+            clips: path.join(root, "clips"),
+            voice: path.join(root, "voice"),
         };
     }
 

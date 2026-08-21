@@ -15,6 +15,14 @@ module.exports = {
     STORY_BEAT_PLANNING: "story_beat_planning",
     SHOT_MAPPING: "shot_mapping",
     CLIP_EXTRACTION: "clip_extraction",
+
+    /*
+    * Final production
+    */
+    SCRIPT_GENERATION: "script_generation",
     SCRIPT: "script",
-    VIDEO_RENDER: "videoRender"
+    NARRATION: "narration",
+    VOICE_GENERATION: "voice_generation",
+    VIDEO_ASSEMBLY: "videoAssembly"
+
 };

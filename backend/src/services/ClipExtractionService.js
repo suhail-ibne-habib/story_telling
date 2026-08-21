@@ -1,198 +1,142 @@
-const ffmpeg = require("fluent-ffmpeg");
-const fs = require("fs");
-const path = require("path");
+const { spawn } = require("child_process");
 
 class ClipExtractionService {
 
     async extract({
         inputPath,
         outputPath,
-        start,
-        end
+        startTime,
+        endTime
     }) {
 
-        // -----------------------------------------
-        // Validate input
-        // -----------------------------------------
-
         if (!inputPath) {
-            throw new Error(
-                "Clip extraction inputPath is required."
-            );
+            throw new Error("Input movie path is required.");
         }
 
         if (!outputPath) {
-            throw new Error(
-                "Clip extraction outputPath is required."
-            );
+            throw new Error("Output clip path is required.");
         }
 
-        if (
-            typeof start !== "number" ||
-            typeof end !== "number"
-        ) {
-            throw new Error(
-                `Invalid clip timestamps: ${start} -> ${end}`
-            );
+        if (!startTime) {
+            throw new Error("Clip startTime is required.");
         }
 
-        const duration = end - start;
-
-        if (start < 0) {
-            throw new Error(
-                `Invalid clip start time: ${start}`
-            );
+        if (!endTime) {
+            throw new Error("Clip endTime is required.");
         }
-
-        if (duration <= 0) {
-            throw new Error(
-                `Invalid clip duration: ${start} -> ${end}`
-            );
-        }
-
-        // -----------------------------------------
-        // Validate source movie
-        // -----------------------------------------
-
-        try {
-
-            await fs.promises.access(
-                inputPath,
-                fs.constants.F_OK
-            );
-
-        } catch {
-
-            throw new Error(
-                `Source movie was not found: ${inputPath}`
-            );
-
-        }
-
-        // -----------------------------------------
-        // Ensure output directory exists
-        // -----------------------------------------
-
-        await fs.promises.mkdir(
-            path.dirname(outputPath),
-            {
-                recursive: true
-            }
-        );
 
         console.log(
-            `[ClipExtraction] Extracting ${start}s -> ${end}s`
+            `[ClipExtraction] ${startTime} → ${endTime}`
         );
-
-        console.log(
-            `[ClipExtraction] Duration: ${duration}s`
-        );
-
-        console.log(
-            `[ClipExtraction] Output: ${outputPath}`
-        );
-
-        // -----------------------------------------
-        // Run FFmpeg
-        // -----------------------------------------
 
         return new Promise((resolve, reject) => {
 
-            ffmpeg(inputPath)
+            const args = [
+                "-y",
 
-                .setStartTime(start)
+                "-ss",
+                this.normalizeTimestamp(startTime),
 
-                .duration(duration)
+                "-to",
+                this.normalizeTimestamp(endTime),
 
-                .outputOptions([
-                    "-c:v libx264",
-                    "-c:a aac",
-                    "-movflags +faststart"
-                ])
+                "-i",
+                inputPath,
 
-                .output(outputPath)
+                "-map",
+                "0:v:0",
 
-                .on("start", command => {
+                "-map",
+                "0:a?",
 
-                    console.log(
-                        "\n========== FFMPEG STARTED =========="
-                    );
+                "-c:v",
+                "libx264",
 
-                    console.log(command);
+                "-preset",
+                "fast",
 
-                    console.log(
-                        "====================================\n"
-                    );
+                "-crf",
+                "18",
 
-                })
+                "-c:a",
+                "aac",
 
-                .on("progress", progress => {
+                "-movflags",
+                "+faststart",
 
-                    if (progress.percent !== undefined) {
+                outputPath
+            ];
 
-                        console.log(
-                            `[FFmpeg] ${progress.percent.toFixed(2)}%`
-                        );
 
-                    }
+            console.log(
+                `[ClipExtraction] ffmpeg ${args.join(" ")}`
+            );
 
-                })
 
-                .on("end", async () => {
+            const ffmpeg =
+                spawn("ffmpeg", args);
 
-                    try {
 
-                        // -----------------------------------------
-                        // Verify output actually exists
-                        // -----------------------------------------
+            let stderr = "";
 
-                        await fs.promises.access(
-                            outputPath,
-                            fs.constants.F_OK
-                        );
 
-                        const stats =
-                            await fs.promises.stat(
-                                outputPath
-                            );
+            ffmpeg.stderr.on(
+                "data",
+                (data) => {
 
-                        if (stats.size === 0) {
+                    stderr +=
+                        data.toString();
 
-                            throw new Error(
-                                `FFmpeg created an empty file: ${outputPath}`
-                            );
+                }
+            );
 
-                        }
+
+            ffmpeg.on(
+                "error",
+                (error) => {
+
+                    reject(error);
+
+                }
+            );
+
+
+            ffmpeg.on(
+                "close",
+                (code) => {
+
+                    if (code === 0) {
 
                         console.log(
                             `[ClipExtraction] Completed: ${outputPath}`
                         );
 
-                        resolve();
+                        resolve(outputPath);
 
-                    } catch (error) {
-
-                        reject(error);
-
+                        return;
                     }
 
-                })
 
-                .on("error", error => {
-
-                    console.error(
-                        "[FFmpeg] Extraction failed:",
-                        error
+                    reject(
+                        new Error(
+                            `FFmpeg failed with code ${code}\n${stderr}`
+                        )
                     );
 
-                    reject(error);
-
-                })
-
-                .run();
+                }
+            );
 
         });
 
+    }
+
+
+    normalizeTimestamp(time) {
+        if (!time) {
+            throw new Error("Invalid timestamp.");
+        }
+
+        return String(time).replace(",", ".");
     }
 
 }

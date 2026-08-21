@@ -7,13 +7,17 @@ class StoryBeatPromptBuilderService {
     }) {
 
         return {
-            system: this.buildSystemPrompt(),
 
-            user: this.buildUserPrompt({
-                movie,
-                movieUnderstanding,
-                chunkContexts
-            })
+            system:
+                this.buildSystemPrompt(),
+
+            user:
+                this.buildUserPrompt({
+                    movie,
+                    movieUnderstanding,
+                    chunkContexts
+                })
+
         };
 
     }
@@ -44,9 +48,49 @@ You will receive:
 
 Each chunk represents a specific section of the original movie.
 
-IMPORTANT:
+IMPORTANT CHUNK RULE:
 
-The chunkId is the only location reference you may use.
+Every chunk has a unique chunkId.
+
+A single story beat MAY span multiple chronological chunks.
+
+If one narrative event begins in one chunk and continues into another
+chunk, treat it as ONE story beat and include ALL relevant chunk IDs
+in the "chunkIds" array.
+
+For example:
+
+If a story event begins in CH0001 and continues in CH0002:
+
+"chunkIds": [
+    "CH0001",
+    "CH0002"
+]
+
+If the complete story event exists inside CH0003:
+
+"chunkIds": [
+    "CH0003"
+]
+
+Only include chunk IDs that contain information directly supporting
+the story beat.
+
+Do NOT force a story beat to remain inside a single chunk merely
+because the source material is divided into separate chunks.
+
+CHUNK REFERENCES:
+
+The chunkIds array is the only location reference you may use.
+
+A story beat may occur entirely within one chunk or may span
+multiple adjacent chunks.
+
+If the same narrative event meaningfully continues across
+multiple chunks, include every relevant chunkId in chunkIds.
+
+Do not add chunks merely because they are nearby.
+Only include chunks that contain part of the actual story beat.
 
 Do NOT output:
 
@@ -58,17 +102,23 @@ Do NOT output:
 - clip IDs
 - invented timing information
 
-You may ONLY reference the original chunk using its chunkId.
+You may ONLY reference source material using chunkIds.
 
 STORY SELECTION RULES:
 
 1. Select a maximum of 20 story beats.
 
-2. Preserve the chronological story, with one exception: the first beat (order: 1) may be a "hook" taken from a later moment in the movie to create intrigue. If you use a non-linear hook, the second beat should return to the true beginning and proceed chronically from there.
+2. Preserve the chronological story, with one exception:
+   the first beat (order: 1) may be a "hook" taken from a later
+   moment in the movie to create intrigue.
+
+   If you use a non-linear hook, the second beat should return
+   to the true beginning and proceed chronologically from there.
 
 3. Preserve cause-and-effect relationships.
 
 4. Include the most important:
+
    - hook
    - inciting incident
    - major character developments
@@ -84,8 +134,8 @@ STORY SELECTION RULES:
 
 7. Remove minor events that do not contribute to the main narrative.
 
-8. Do not select two beats from the same chunk if they describe
-   essentially the same action or story event.
+8. Avoid creating multiple beats for essentially the same narrative
+   event.
 
 9. A beat should represent a meaningful narrative moment, not
    simply an interesting visual.
@@ -95,21 +145,47 @@ STORY SELECTION RULES:
 TARGET DURATION:
 
 Set targetDuration based on the movie's length and narrative complexity:
+
 - Short/simple movies (under 90 min): 240–300 seconds
-- Standard movies (90–120 min): 300–420 seconds  
+- Standard movies (90–120 min): 300–420 seconds
 - Long/complex movies (over 120 min): 420–540 seconds
 
-Choose the lower end for straightforward plots, the higher end for movies with multiple subplots or complex arcs.
+Choose the lower end for straightforward plots, and the higher end
+for movies with multiple subplots or complex story arcs.
 
-The duration is only a recommendation for the later ShotMapper.
+The target duration is only a recommendation for the later
+Shot Mapping and Clip Extraction stages.
 
 DESCRIPTION GUIDELINES:
 
-The description field must be visually specific. Describe what can actually be seen on screen (characters, actions, objects, setting). Avoid abstract summaries like "Ada makes a decision" or "The conflict escalates." Instead, write "Ada sits at a wooden desk writing in a logbook by candlelight" or "Fiddler points a revolver at a bloodied man near a campfire."
+The description field must be visually specific.
 
-This description will be used by an automated system to find matching video shots, so concrete visual details are essential.
+Describe what can actually be seen on screen:
+
+- characters
+- visible actions
+- objects
+- setting
+- locations
+- important physical details
+- visible interactions
+
+Avoid abstract descriptions such as:
+
+"Ada makes a decision."
+
+Instead, prefer concrete descriptions such as:
+
+"Ada sits at a wooden desk writing in a logbook by candlelight."
+
+This description will later be used by an automated system to locate
+matching video shots, so concrete visual details are essential.
 
 Do NOT output timestamps.
+
+Do NOT output shot IDs.
+
+Do NOT output frame IDs.
 
 OUTPUT:
 
@@ -123,7 +199,9 @@ Use exactly this structure:
         {
             "id": "BEAT_001",
             "order": 1,
-            "chunkId": "CH0001",
+            "chunkIds": [
+                "CH0001"
+            ],
             "description": "",
             "narrativePurpose": "",
             "importance": 0.95,
@@ -132,20 +210,26 @@ Use exactly this structure:
     ]
 }
 
-IMPORTANT:
+IMPORTANT OUTPUT RULES:
 
 - Maximum 20 beats.
-- Every beat must have a valid chunkId.
+- Every beat must have a valid chunkIds array.
+- chunkIds must contain one or more valid chunk IDs from the
+  provided chunk analyses.
+- Include multiple chunk IDs when a single narrative beat
+  spans multiple chunks.
+- Do not include unrelated chunks.
 - Every beat must have an order.
 - importance must be between 0 and 1.
 - suggestedDuration must be exactly:
   "short", "medium", or "long".
-- No timestamps.
-- No shot IDs.
-- No frame IDs.
-- No additional fields.
+- Do NOT output timestamps.
+- Do NOT output shot IDs.
+- Do NOT output frame IDs.
+- Do NOT output clip IDs.
+- Do NOT add additional fields.
 - Return JSON only.
-`.trim();
+        `.trim();
 
     }
 
@@ -194,19 +278,26 @@ movie recap.
 
 Remember:
 
-- Use chunkId only as the location reference.
+- Use chunkIds as the only source-location reference.
+- A single story beat may contain multiple chunkIds.
+- If a narrative event spans multiple chunks, include all relevant
+  chunkIds in that beat.
+- Do not create separate beats merely because the event crosses
+  a chunk boundary.
+- Do not include chunks that do not directly support the beat.
 - Do not output timestamps.
 - Do not output shot IDs.
 - Do not output frame IDs.
 - Maximum 20 beats.
 - Preserve cause-and-effect.
-- Preserve chronological order.
+- Preserve chronological story progression.
 - Return ONLY valid JSON.
-`.trim();
+        `.trim();
 
     }
 
 }
 
 
-module.exports = StoryBeatPromptBuilderService;
+module.exports =
+    StoryBeatPromptBuilderService;

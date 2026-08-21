@@ -25,12 +25,16 @@ class ResumeJobService {
             await ProgressService.load(jobId);
 
         const PIPELINE_STAGES = [
+            STAGES.AUDIO,
             STAGES.VISION_ANALYSIS,
             STAGES.CHUNK_ANALYSIS,
             STAGES.FULL_MOVIE_UNDERSTANDING,
             STAGES.STORY_BEAT_PLANNING,
             STAGES.SHOT_MAPPING,
-            STAGES.CLIP_EXTRACTION
+            STAGES.CLIP_EXTRACTION,
+            STAGES.SCRIPT,
+            STAGES.VOICE_GENERATION,
+            STAGES.VIDEO_ASSEMBLY
         ];
 
         // 3. Determine stage
@@ -79,6 +83,14 @@ class ResumeJobService {
          */
 
         switch (stage) {
+
+            case STAGES.AUDIO:
+                EventBus.publish(
+                    events.METADATA_COMPLETED,
+                    { jobId }
+                );
+
+                break;
 
             /*
              * Vision Analysis Worker
@@ -175,6 +187,38 @@ class ResumeJobService {
 
                 break;
 
+
+            case STAGES.SCRIPT:
+                EventBus.publish(
+                    events.CLIP_EXTRACTION_COMPLETED,
+                    { jobId }
+                )
+
+                break;
+
+            case STAGES.VOICE_GENERATION:
+                EventBus.publish(
+                    events.SCRIPT_GENERATION_COMPLETED,
+                    { jobId }
+                )
+
+                break;
+
+            case STAGES.VIDEO_RENDER:
+                EventBus.publish(
+                    events.VOICE_GENERATION_COMPLETED,
+                    { jobId }
+                )
+
+                break;
+
+            case STAGES.VIDEO_ASSEMBLY:
+                EventBus.publish(
+                    events.SCRIPT_GENERATION_COMPLETED,
+                    { jobId }
+                )
+
+                break;
 
             default:
 
