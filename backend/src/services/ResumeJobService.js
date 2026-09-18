@@ -6,12 +6,12 @@ const events = require("../events/events");
 const STAGES = require("../constance/pipelineStages");
 
 const fs = require("fs");
+const path = require("path");
 
 class ResumeJobService {
 
     async resumeJob({ jobId }) {
 
-        // 1. Validate job
         const paths = Storage.getPaths(jobId);
 
         if (!fs.existsSync(paths.root)) {
@@ -20,30 +20,20 @@ class ResumeJobService {
             );
         }
 
-        // 2. Load progress
         const progress =
             await ProgressService.load(jobId);
 
         const PIPELINE_STAGES = [
-            STAGES.AUDIO,
-            STAGES.VISION_ANALYSIS,
-            STAGES.CHUNK_ANALYSIS,
-            STAGES.FULL_MOVIE_UNDERSTANDING,
-            STAGES.STORY_BEAT_PLANNING,
-            STAGES.SHOT_MAPPING,
-            STAGES.CLIP_EXTRACTION,
-            STAGES.SCRIPT,
-            STAGES.VOICE_GENERATION,
-            STAGES.VIDEO_ASSEMBLY
+            STAGES.METADATA,
+            STAGES.DOWNSAMPLE,
+            STAGES.EVENT_EXTRACTION,
+            STAGES.SHOT_DETECTION,
+            STAGES.SHOT_SELECTION,
+            STAGES.VOICEOVER
         ];
 
-        // 3. Determine stage
         let stage = progress.currentStage;
 
-        /*
-         * If there is no currently running stage,
-         * find the first stage that is not completed.
-         */
         if (!stage) {
 
             for (const pipelineStage of PIPELINE_STAGES) {
@@ -52,176 +42,86 @@ class ResumeJobService {
                     progress.stages?.[pipelineStage]?.status;
 
                 if (status !== "completed") {
-
                     stage = pipelineStage;
-
                     break;
                 }
             }
         }
 
-        // 4. Everything is completed
         if (!stage) {
+            stage = STAGES.SHOT_SELECTION;
+        }
 
-            throw new Error(
-                `Job ${jobId} has already completed all pipeline stages.`
-            );
+        if (
+            stage === STAGES.DOWNSAMPLE &&
+            !fs.existsSync(Storage.getProxyMovie(jobId))
+        ) {
+            stage = STAGES.DOWNSAMPLE;
+        }
+
+        if (
+            stage === STAGES.EVENT_EXTRACTION &&
+            !fs.existsSync(path.join(paths.events, "events.json"))
+        ) {
+            stage = STAGES.EVENT_EXTRACTION;
+        }
+
+        if (
+            stage === STAGES.VOICEOVER &&
+            !fs.existsSync(path.join(paths.output, "recap_voiced.mp4"))
+        ) {
+            stage = STAGES.VOICEOVER;
         }
 
         console.log(
             `[ResumeJob] Resuming from stage: ${stage}`
         );
 
-        /*
-         * 5. Trigger the worker responsible for the stage.
-         *
-         * IMPORTANT:
-         *
-         * We don't directly call workers here.
-         * We publish the event that normally starts
-         * that worker.
-         */
-
         switch (stage) {
 
-            case STAGES.AUDIO:
+            case STAGES.METADATA:
+                EventBus.publish(
+                    events.MOVIE_REGISTERED,
+                    { jobId }
+                );
+                break;
+
+            case STAGES.DOWNSAMPLE:
                 EventBus.publish(
                     events.METADATA_COMPLETED,
                     { jobId }
                 );
-
                 break;
 
-            /*
-             * Vision Analysis Worker
-             *
-             * Trigger:
-             * CONTACT_SHEETS_COMPLETED
-             */
-            case STAGES.VISION_ANALYSIS:
-
+            case STAGES.EVENT_EXTRACTION:
                 EventBus.publish(
-                    events.CONTACT_SHEETS_COMPLETED,
+                    events.DOWNSAMPLE_COMPLETED,
                     { jobId }
                 );
-
                 break;
 
-
-            /*
-             * Chunk Analysis Worker
-             *
-             * Trigger:
-             * VISION_ANALYZE_COMPLETED
-             */
-            case STAGES.CHUNK_ANALYSIS:
-
+            case STAGES.SHOT_DETECTION:
                 EventBus.publish(
-                    events.VISION_ANALYZE_COMPLETED,
+                    events.EVENT_EXTRACTION_COMPLETED,
                     { jobId }
                 );
-
                 break;
 
-
-            /*
-             * Full Movie Understanding Worker
-             *
-             * Trigger:
-             * CHUNK_ANALYSIS_COMPLETED
-             */
-            case STAGES.FULL_MOVIE_UNDERSTANDING:
-
+            case STAGES.SHOT_SELECTION:
                 EventBus.publish(
-                    events.CHUNK_ANALYSIS_COMPLETED,
+                    events.SHOT_DETECTION_COMPLETED,
                     { jobId }
                 );
-
                 break;
 
-
-            /*
-             * Story Beat Planning Worker
-             *
-             * Trigger:
-             * FULL_MOVIE_UNDERSTANDING_COMPLETED
-             */
-            case STAGES.STORY_BEAT_PLANNING:
-
+            case STAGES.VOICEOVER:
                 EventBus.publish(
-                    events.FULL_MOVIE_UNDERSTANDING_COMPLETED,
+                    events.SHOT_SELECTION_COMPLETED,
                     { jobId }
                 );
-
-                break;
-
-
-            /*
-             * Shot Mapping Worker
-             *
-             * Trigger:
-             * STORY_BEAT_PLANNING_COMPLETED
-             */
-            case STAGES.SHOT_MAPPING:
-
-                EventBus.publish(
-                    events.STORY_BEAT_PLANNING_COMPLETED,
-                    { jobId }
-                );
-
-                break;
-
-
-            /*
-             * Clip Extraction Worker
-             *
-             * Trigger:
-             * SHOT_MAPPING_COMPLETED
-             */
-            case STAGES.CLIP_EXTRACTION:
-
-                EventBus.publish(
-                    events.SHOT_MAPPING_COMPLETED,
-                    { jobId }
-                );
-
-                break;
-
-
-            case STAGES.SCRIPT:
-                EventBus.publish(
-                    events.CLIP_EXTRACTION_COMPLETED,
-                    { jobId }
-                )
-
-                break;
-
-            case STAGES.VOICE_GENERATION:
-                EventBus.publish(
-                    events.SCRIPT_GENERATION_COMPLETED,
-                    { jobId }
-                )
-
-                break;
-
-            case STAGES.VIDEO_RENDER:
-                EventBus.publish(
-                    events.VOICE_GENERATION_COMPLETED,
-                    { jobId }
-                )
-
-                break;
-
-            case STAGES.VIDEO_ASSEMBLY:
-                EventBus.publish(
-                    events.SCRIPT_GENERATION_COMPLETED,
-                    { jobId }
-                )
-
                 break;
 
             default:
-
                 throw new Error(
                     `Cannot resume stage: ${stage}`
                 );

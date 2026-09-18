@@ -19,36 +19,18 @@ class StorageService {
         return {
             root,
             metadata: path.join(root, "metadata"),
-            audio: path.join(root, "audio"),
-            transcript: path.join(root, "transcript"),
-            shots: path.join(root, "shots"),
-            shotContext: path.join(root, "shot-context"),
-            frames: path.join(root, "frames"),
-            chunks: path.join(root, "chunks"),
-            contactSheets: path.join(root, 'contact_sheets'),
-            visualAnalysis: path.join(root, "visual_analysis"),
-            chunkAnalysis: path.join(root, "chunk-analysis"),
-            shotMapping: path.join(root, 'shot-mappings'),
-            scripts: path.join(root, "scrips"),
-            characters: path.join(root, "characters"),
+            proxy: path.join(root, "proxy"),
             events: path.join(root, "events"),
-            clips: path.join(root, "clips"),
             voice: path.join(root, "voice"),
+            output: path.join(root, "output")
         };
     }
 
     createWorkspace(jobId) {
         const paths = this.getPaths(jobId);
 
-        const directories = Object.values(paths);
-
-        directories.forEach(directory => {
-            fs.mkdirSync(
-                directory,
-                {
-                    recursive: true
-                }
-            );
+        Object.values(paths).forEach((directory) => {
+            fs.mkdirSync(directory, { recursive: true });
         });
 
         return paths;
@@ -60,6 +42,20 @@ class StorageService {
             "storage",
             "inputs",
             filename
+        );
+    }
+
+    getProxyMovie(jobId) {
+        return path.join(
+            this.getPaths(jobId).proxy,
+            "movie.mp4"
+        );
+    }
+
+    getEventDir(jobId, eventId) {
+        return path.join(
+            this.getPaths(jobId).events,
+            String(eventId)
         );
     }
 }

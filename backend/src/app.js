@@ -16,23 +16,11 @@ connect();
 */
 
 require("./workers/MetaDataWorker");
-require("./workers/MovieEnrichmentWorker");
-require("./workers/AudioWorker");
-require("./workers/TranscriptWorker");
+require("./workers/DownsampleWorker");
+require("./workers/EventExtractionWorker");
 require("./workers/ShotDetectionWorker");
-require("./workers/FrameExtractionWorker");
-require("./workers/ChunkBuilderWorker")
-require('./workers/ContactSheetWorker')
-require('./workers/VisionAnalysisWorker')
-require("./workers/ChunkAnalysisWorker")
-require('./workers/MovieUnderstandingWorker')
-require('./workers/StoryBeatPlanningWorker')
-require('./workers/ShotMappingWorker')
-require('./workers/ClipExtractionWorker')
-require('./workers/ScriptGenerationWorker')
-require('./workers/VoiceGenerationWorker')
-require('./workers/VideoAssemblyWorker')
-
+require("./workers/ShotSelectionWorker");
+require("./workers/VoiceoverWorker");
 
 /*
 |--------------------------------------------------------------------------

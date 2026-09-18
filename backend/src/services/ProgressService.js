@@ -535,6 +535,35 @@ class ProgressService {
     }
 
 
+    async completeJob(jobId) {
+
+        return this.withJobLock(
+
+            jobId,
+
+            async () => {
+
+                const progress =
+                    await this.load(jobId);
+
+                progress.status =
+                    "completed";
+
+                progress.currentStage =
+                    null;
+
+                await this.save(
+                    jobId,
+                    progress
+                );
+
+            }
+
+        );
+
+    }
+
+
     /*
      * Mark a stage as failed.
      */
@@ -735,81 +764,6 @@ class ProgressService {
 
         );
 
-    }
-
-
-    async isContactSheetCompleted(
-        jobId,
-        stageName,
-        chunkId,
-        contactSheetId
-    ) {
-
-        const progress =
-            await this.load(jobId);
-
-        return (
-            progress.stages?.[stageName]
-                ?.chunks?.[chunkId]
-                ?.contactSheets?.[contactSheetId]
-                ?.status === "completed"
-        );
-    }
-
-
-    async completeContactSheet(
-        jobId,
-        stageName,
-        chunkId,
-        contactSheetId
-    ) {
-
-        const progress =
-            await this.load(jobId);
-
-        progress.stages[stageName] ??= {};
-        progress.stages[stageName].chunks ??= {};
-        progress.stages[stageName].chunks[chunkId] ??= {};
-        progress.stages[stageName].chunks[chunkId].contactSheets ??= {};
-
-        progress.stages[stageName]
-            .chunks[chunkId]
-            .contactSheets[contactSheetId] = {
-
-            status: "completed",
-
-            completedAt:
-                new Date().toISOString()
-
-        };
-
-        await this.save(
-            jobId,
-            progress
-        );
-    }
-
-
-    async areAllContactSheetsCompleted(
-        jobId,
-        stageName,
-        chunkId,
-        contactSheetIds
-    ) {
-
-        const progress =
-            await this.load(jobId);
-
-        const contactSheets =
-            progress.stages?.[stageName]
-                ?.chunks?.[chunkId]
-                ?.contactSheets || {};
-
-        return contactSheetIds.every(
-            contactSheetId =>
-                contactSheets[contactSheetId]
-                    ?.status === "completed"
-        );
     }
 
 }

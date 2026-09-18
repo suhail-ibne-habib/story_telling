@@ -1,490 +1,319 @@
-const fs = require("fs").promises;
+const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 
 class GeminiService {
 
     constructor() {
+        this.apiKey = process.env.GEMINI_API_KEY;
+        this.model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+        this.eventModel = process.env.GEMINI_EVENT_MODEL || "gemini-3.5-flash";
+        this.host = "https://generativelanguage.googleapis.com/v1beta";
+        this.uploadHost = "https://generativelanguage.googleapis.com/upload/v1beta";
+    }
 
-        this.apiKey =
-            process.env.GEMINI_API_KEY;
-
-        this.model =
-            process.env.GEMINI_MODEL ||
-            "gemini-3.6-flash";
-
-        this.host =
-            "https://generativelanguage.googleapis.com/v1beta";
-
+    assertKey() {
         if (!this.apiKey) {
-
-            throw new Error(
-                "GEMINI_API_KEY is not configured."
-            );
-
+            throw new Error("GEMINI_API_KEY is not configured.");
         }
-
     }
 
+    wrapError(error, fallback) {
+        const status = error?.response?.status;
+        const apiMessage =
+            error?.response?.data?.error?.message ||
+            error?.response?.data?.message ||
+            error.message;
 
-    /**
-     * Generate a vision analysis response.
-     *
-     * Expected prompt:
-     *
-     * {
-     *     system: "...",
-     *     user: "...",
-     *     images: [
-     *         "D:/path/to/contact-sheet.jpg"
-     *     ]
-     * }
-     */
-    async generate(prompt) {
-
-        const {
-            system,
-            user,
-            images = []
-        } = prompt;
-
-
-        if (!user) {
-
-            throw new Error(
-                "Gemini prompt requires a user message."
-            );
-
+        if (status) {
+            return new Error(`Gemini ${status}: ${apiMessage}`);
         }
 
-
-        console.log(
-            "\n========== GEMINI REQUEST =========="
-        );
-
-        console.log(
-            `[Gemini] Model: ${this.model}`
-        );
-
-        console.log(
-            `[Gemini] Image count: ${images.length}`
-        );
-
-        console.log(
-            `[Gemini] User prompt: ${Buffer.byteLength(
-                user,
-                "utf8"
-            )} bytes`
-        );
-
-
-        try {
-
-            /*
-             * Build request payload
-             */
-
-            const payload =
-                await this.buildPayload({
-                    system,
-                    user,
-                    images
-                });
-
-
-            console.log(
-                "[Gemini] Payload built."
-            );
-
-
-            const started =
-                Date.now();
-
-
-            const response =
-                await axios.post(
-
-                    `${this.host}/models/${this.model}:generateContent`,
-
-                    payload,
-
-                    {
-                        headers: {
-
-                            "Content-Type":
-                                "application/json",
-
-                            "x-goog-api-key":
-                                this.apiKey
-
-                        },
-
-                        timeout:
-                            1000 * 60 * 20,
-
-                        maxBodyLength:
-                            Infinity,
-
-                        maxContentLength:
-                            Infinity
-
-                    }
-
-                );
-
-
-            const duration =
-                (
-                    (Date.now() - started) /
-                    1000
-                ).toFixed(2);
-
-
-            console.log(
-                `[Gemini] Completed in ${duration}s`
-            );
-
-
-            /*
-             * Extract text response
-             */
-
-            const text =
-                this.extractText(
-                    response.data
-                );
-
-
-            if (!text) {
-
-                throw new Error(
-                    "Gemini returned an empty response."
-                );
-
-            }
-
-
-            console.log(
-                `[Gemini] Response length: ${text.length} characters`
-            );
-
-
-            console.log(
-                "====================================\n"
-            );
-
-
-            return {
-
-                content: text,
-
-                raw: response.data
-
-            };
-
-
-        } catch (error) {
-
-            console.error(
-                "\n========== GEMINI ERROR =========="
-            );
-
-
-            if (error.response) {
-
-                console.error(
-                    "[Gemini] Status:",
-                    error.response.status
-                );
-
-                console.error(
-                    "[Gemini] Response:",
-                    error.response.data
-                );
-
-            } else {
-
-                console.error(
-                    "[Gemini] Error:",
-                    error.message
-                );
-
-            }
-
-
-            console.error(
-                "===================================\n"
-            );
-
-
-            throw error;
-
-        }
-
+        return new Error(`${fallback}: ${apiMessage}`);
     }
 
+    headers(extra = {}) {
+        return {
+            "x-goog-api-key": this.apiKey,
+            ...extra
+        };
+    }
 
-    /**
-     * Build Gemini generateContent payload.
-     */
-    async buildPayload({
-        system,
-        user,
-        images
-    }) {
-
-        /*
-         * Text part
-         */
-
-        const parts = [];
-
-
-        /*
-         * Add user prompt first.
-         */
-
-        parts.push({
-
-            text: user
-
-        });
-
-
-        /*
-         * Add contact-sheet images.
-         */
-
-        for (
-            const imagePath of images
-        ) {
-
-            const imagePart =
-                await this.buildImagePart(
-                    imagePath
-                );
-
-
-            parts.push(
-                imagePart
-            );
-
-        }
-
-
-        const payload = {
-
-            contents: [
-
-                {
-
-                    role: "user",
-
-                    parts
-
-                }
-
-            ],
-
-            generationConfig: {
-
-                temperature: 0.2,
-                maxOutputTokens: 2048,
-                responseMimeType: "application/json"
-
-            }
-
+    getMimeType(filePath) {
+        const extension = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".mov": "video/quicktime",
+            ".mkv": "video/x-matroska",
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png"
         };
 
+        return mimeTypes[extension] || "application/octet-stream";
+    }
 
-        /*
-         * Gemini system instruction.
-         */
+    async uploadFile(filePath) {
+        this.assertKey();
 
-        if (
-            system &&
-            system.trim()
-        ) {
+        const stats = await fs.promises.stat(filePath);
+        const mimeType = this.getMimeType(filePath);
+        const displayName = path.basename(filePath);
 
+        console.log(
+            `[Gemini] Starting upload: ${displayName} (${(stats.size / (1024 * 1024)).toFixed(1)} MB)`
+        );
+
+        try {
+            const start = await axios.post(
+                `${this.uploadHost}/files`,
+                {
+                    file: {
+                        displayName
+                    }
+                },
+                {
+                    headers: this.headers({
+                        "Content-Type": "application/json",
+                        "X-Goog-Upload-Protocol": "resumable",
+                        "X-Goog-Upload-Command": "start",
+                        "X-Goog-Upload-Header-Content-Length": String(stats.size),
+                        "X-Goog-Upload-Header-Content-Type": mimeType
+                    }),
+                    timeout: 120000
+                }
+            );
+
+            const uploadUrl =
+                start.headers["x-goog-upload-url"] ||
+                start.headers["X-Goog-Upload-URL"];
+
+            if (!uploadUrl) {
+                throw new Error("Gemini did not return an upload URL.");
+            }
+
+            const uploaded = await axios.put(
+                uploadUrl,
+                fs.createReadStream(filePath),
+                {
+                    headers: {
+                        "Content-Length": String(stats.size),
+                        "X-Goog-Upload-Offset": "0",
+                        "X-Goog-Upload-Command": "upload, finalize"
+                    },
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity,
+                    timeout: 0
+                }
+            );
+
+            const file = uploaded.data?.file || uploaded.data;
+
+            if (!file?.name) {
+                throw new Error("Gemini file upload returned no file name.");
+            }
+
+            return this.waitUntilActive(file);
+        } catch (error) {
+            if (error.message?.startsWith("Gemini ")) {
+                throw error;
+            }
+
+            throw this.wrapError(error, "Gemini upload failed");
+        }
+    }
+
+    async waitUntilActive(file) {
+        let current = file;
+        const started = Date.now();
+
+        while (current.state && current.state !== "ACTIVE") {
+            if (current.state === "FAILED") {
+                throw new Error("Gemini file processing failed.");
+            }
+
+            if (Date.now() - started > 1000 * 60 * 20) {
+                throw new Error("Timed out waiting for Gemini to process the video.");
+            }
+
+            console.log(
+                `[Gemini] File state: ${current.state}`
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, 4000));
+
+            const response = await axios.get(
+                `${this.host}/${current.name}`,
+                {
+                    headers: this.headers(),
+                    timeout: 60000
+                }
+            );
+
+            current = response.data;
+        }
+
+        console.log(
+            `[Gemini] File ready: ${current.uri || current.name}`
+        );
+
+        return current;
+    }
+
+    async deleteFile(file) {
+        if (!file?.name) {
+            return;
+        }
+
+        try {
+            await axios.delete(
+                `${this.host}/${file.name}`,
+                {
+                    headers: this.headers(),
+                    timeout: 30000
+                }
+            );
+        } catch (error) {
+            console.log(
+                `[Gemini] Could not delete uploaded file: ${error.message}`
+            );
+        }
+    }
+
+    async generateJson({
+        file,
+        images,
+        user,
+        system,
+        timeoutMs,
+        model,
+        disableThinking
+    }) {
+        this.assertKey();
+
+        const modelId = model || this.model;
+        const parts = [];
+
+        if (file?.uri) {
+            parts.push({
+                fileData: {
+                    mimeType: file.mimeType || "video/mp4",
+                    fileUri: file.uri
+                }
+            });
+        }
+
+        if (Array.isArray(images)) {
+            for (const image of images) {
+                if (image.label) {
+                    parts.push({
+                        text: String(image.label)
+                    });
+                }
+
+                const buffer = image.buffer
+                    ? image.buffer
+                    : await fs.promises.readFile(image.path);
+
+                parts.push({
+                    inlineData: {
+                        mimeType: image.mimeType || this.getMimeType(image.path) || "image/jpeg",
+                        data: buffer.toString("base64")
+                    }
+                });
+            }
+        }
+
+        parts.push({
+            text: user
+        });
+
+        const generationConfig = {
+            temperature: 0.1,
+            responseMimeType: "application/json"
+        };
+
+        if (disableThinking) {
+            generationConfig.thinkingConfig = {
+                thinkingBudget: 0
+            };
+        }
+
+        const payload = {
+            contents: [
+                {
+                    role: "user",
+                    parts
+                }
+            ],
+            generationConfig
+        };
+
+        if (system && system.trim()) {
             payload.systemInstruction = {
-
                 parts: [
-
                     {
                         text: system
                     }
-
                 ]
-
             };
-
         }
 
-
-        return payload;
-
-    }
-
-
-    /**
-     * Convert local image into Gemini inlineData.
-     */
-    async buildImagePart(imagePath) {
-
-        if (!imagePath) {
-
-            throw new Error(
-                "Image path is required."
-            );
-
-        }
-
-
-        const absolutePath =
-            path.resolve(
-                imagePath
-            );
-
+        const started = Date.now();
 
         console.log(
-            `[Gemini] Reading image: ${absolutePath}`
+            `[Gemini] generateContent model=${modelId}`
         );
 
+        let response;
 
-        const imageBuffer =
-            await fs.readFile(
-                absolutePath
+        try {
+            response = await axios.post(
+                `${this.host}/models/${modelId}:generateContent`,
+                payload,
+                {
+                    headers: this.headers({
+                        "Content-Type": "application/json"
+                    }),
+                    timeout: timeoutMs || 1000 * 60 * 30,
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity
+                }
             );
-
-
-        const base64 =
-            imageBuffer.toString(
-                "base64"
-            );
-
-
-        const mimeType =
-            this.getMimeType(
-                absolutePath
-            );
-
-
-        return {
-
-            inlineData: {
-
-                mimeType,
-
-                data: base64
-
-            }
-
-        };
-
-    }
-
-
-    /**
-     * Determine MIME type from image extension.
-     */
-    getMimeType(filePath) {
-
-        const extension =
-            path.extname(
-                filePath
-            ).toLowerCase();
-
-
-        const mimeTypes = {
-
-            ".jpg":
-                "image/jpeg",
-
-            ".jpeg":
-                "image/jpeg",
-
-            ".png":
-                "image/png",
-
-            ".webp":
-                "image/webp",
-
-            ".gif":
-                "image/gif"
-
-        };
-
-
-        const mimeType =
-            mimeTypes[extension];
-
-
-        if (!mimeType) {
-
-            throw new Error(
-                `Unsupported image type: ${extension}`
-            );
-
+        } catch (error) {
+            throw this.wrapError(error, "Gemini generateContent failed");
         }
 
+        console.log(
+            `[Gemini] Completed in ${((Date.now() - started) / 1000).toFixed(2)}s`
+        );
 
-        return mimeType;
+        const text = this.extractText(response.data);
 
+        if (!text) {
+            throw new Error("Gemini returned an empty JSON response.");
+        }
+
+        return text;
     }
 
-
-    /**
-     * Extract generated text from Gemini response.
-     */
     extractText(data) {
+        const parts = data?.candidates?.[0]?.content?.parts;
 
-        const candidates =
-            data?.candidates;
-
-
-        if (
-            !Array.isArray(candidates) ||
-            candidates.length === 0
-        ) {
-
+        if (!Array.isArray(parts)) {
             return "";
-
         }
-
-
-        const parts =
-            candidates[0]?.content?.parts;
-
-
-        if (
-            !Array.isArray(parts)
-        ) {
-
-            return "";
-
-        }
-
 
         return parts
-
-            .filter(
-                part =>
-                    typeof part.text === "string"
-            )
-
-            .map(
-                part =>
-                    part.text
-            )
-
+            .map((part) => part.text)
+            .filter(Boolean)
             .join("\n")
-
             .trim();
-
     }
 
 }
 
-
-module.exports =
-    new GeminiService();
+module.exports = new GeminiService();

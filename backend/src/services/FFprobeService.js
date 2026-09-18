@@ -49,6 +49,18 @@ class FFprobService {
         }
     }
 
+    async durationSeconds(filePath) {
+        const metadata = await this.extract(filePath);
+
+        if (!Number.isFinite(metadata.duration) || metadata.duration <= 0) {
+            throw new Error(
+                `Could not read duration: ${filePath}`
+            );
+        }
+
+        return metadata.duration;
+    }
+
 }
 
 module.exports = new FFprobService()

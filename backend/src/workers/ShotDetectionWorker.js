@@ -1,31 +1,19 @@
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
 
 const EventBus = require("../core/EventBus");
 const events = require("../events/events");
 
 const StorageService = require("../../storage/StorageService");
+const ProgressService = require("../services/ProgressService");
+const ShotDetectionService = require("../services/ShotDetectionService");
+const JobService = require("../services/JobService");
 
-const ShotDetectionService = require(
-    "../services/ShotDetectionService"
-);
-
-const ProgressService = require(
-    "../services/ProgressService"
-);
-
-const GetFileName = require(
-    "../core/GetFileName"
-);
-
-const STAGES = require(
-    "../constance/pipelineStages"
-);
-
+const STAGES = require("../constance/pipelineStages");
 
 EventBus.subscribe(
 
-    events.TRANSCRIPT_COMPLETED,
+    events.EVENT_EXTRACTION_COMPLETED,
 
     async ({ jobId }) => {
 
@@ -39,213 +27,107 @@ EventBus.subscribe(
                 `[ShotDetection] Job ID: ${jobId}`
             );
 
+            const recap = await ShotDetectionService.loadEvents(jobId);
+            const progress = await ProgressService.load(jobId);
+            const stage = progress?.stages?.[STAGES.SHOT_DETECTION];
+            const allReady = recap.every((scene) => (
+                fs.existsSync(
+                    path.join(
+                        StorageService.getEventDir(jobId, scene.id),
+                        "shots.json"
+                    )
+                )
+            ));
 
-            /*
-             * 1. Start stage
-             *
-             * ProgressService is responsible for
-             * tracking the current stage and resume state.
-             */
+            if (
+                stage?.status === "completed" &&
+                allReady
+            ) {
+
+                console.log(
+                    "[ShotDetection] Stage already completed. Skipping."
+                );
+
+                EventBus.publish(
+                    events.SHOT_DETECTION_COMPLETED,
+                    { jobId }
+                );
+
+                return;
+            }
 
             await ProgressService.startStage(
                 jobId,
-                STAGES.SHOTS
+                STAGES.SHOT_DETECTION
             );
 
-
-            /*
-             * 2. Get storage paths
-             */
-
-            const paths =
-                StorageService.getPaths(jobId);
-
-
-            /*
-             * 3. Make sure shots directory exists
-             */
-
-            await fs.promises.mkdir(
-                paths.shots,
-                {
-                    recursive: true
-                }
-            );
-
-
-            /*
-             * 4. Resolve filename
-             *
-             * Normal run:
-             *      JobService -> filename
-             *
-             * Resume:
-             *      ProgressService -> filename
-             *
-             * The worker doesn't need to know
-             * where the filename came from.
-             */
-
-            const filename =
-                await GetFileName.getFileName(jobId);
-
-
-            if (!filename) {
-
-                throw new Error(
-                    `Filename could not be resolved for job: ${jobId}`
-                );
-
-            }
-
+            const inputPath = await ShotDetectionService.sourceMovie(jobId);
 
             console.log(
-                `[ShotDetection] Movie filename: ${filename}`
+                `[ShotDetection] Source: ${inputPath}`
             );
 
+            for (const scene of recap) {
 
-            /*
-             * 5. Resolve original movie
-             */
-
-            const inputMovie =
-                StorageService.getInputMovie(
-                    filename
-                );
-
-
-            console.log(
-                "[ShotDetection] Input movie:",
-                inputMovie
-            );
-
-
-            /*
-             * 6. Verify movie exists
-             */
-
-            if (
-                !fs.existsSync(inputMovie)
-            ) {
-
-                throw new Error(
-                    `Input movie not found: ${inputMovie}`
-                );
-
-            }
-
-
-            /*
-             * 7. Detect shots
-             */
-
-            console.log(
-                "[ShotDetection] Detecting shots..."
-            );
-
-
-            const shots =
-                await ShotDetectionService.detect(
-                    inputMovie
-                );
-
-
-            /*
-             * 8. Validate result
-             */
-
-            if (
-                !Array.isArray(shots)
-            ) {
-
-                throw new Error(
-                    "ShotDetectionService returned an invalid result."
-                );
-
-            }
-
-
-            if (
-                shots.length === 0
-            ) {
-
-                throw new Error(
-                    "ShotDetectionService detected zero shots."
-                );
-
-            }
-
-
-            console.log(
-                `[ShotDetection] Detected ${shots.length} shots`
-            );
-
-
-            /*
-             * 9. Save shots
-             */
-
-            const shotFile =
-                path.join(
-                    paths.shots,
+                const shotsPath = path.join(
+                    StorageService.getEventDir(jobId, scene.id),
                     "shots.json"
                 );
 
+                const alreadyDone = await ProgressService.isChunkCompleted(
+                    jobId,
+                    STAGES.SHOT_DETECTION,
+                    scene.id
+                );
 
-            await fs.promises.writeFile(
+                if (alreadyDone && fs.existsSync(shotsPath)) {
+                    console.log(
+                        `[ShotDetection] ${scene.id} already detected. Skipping.`
+                    );
+                    continue;
+                }
 
-                shotFile,
+                if (!scene.durationMs || scene.endMs <= scene.startMs) {
+                    console.log(
+                        `[ShotDetection] Skipping ${scene.id}: invalid window ${scene.start_time} → ${scene.end_time}`
+                    );
+                    continue;
+                }
 
-                JSON.stringify(
-                    shots,
-                    null,
-                    2
-                ),
+                console.log(
+                    `[ShotDetection] ${scene.id} ${scene.start_time} → ${scene.end_time}`
+                );
 
-                "utf-8"
+                const detected = await ShotDetectionService.detectEvent({
+                    jobId,
+                    inputPath,
+                    scene
+                });
 
-            );
+                console.log(
+                    `[ShotDetection] ${scene.id}: ${detected.shots.length} shots`
+                );
 
-
-            console.log(
-                `[ShotDetection] Saved shots: ${shotFile}`
-            );
-
-
-            /*
-             * 10. Complete stage
-             */
+                await ProgressService.completeChunk(
+                    jobId,
+                    STAGES.SHOT_DETECTION,
+                    scene.id
+                );
+            }
 
             await ProgressService.completeStage(
                 jobId,
-                STAGES.SHOTS
+                STAGES.SHOT_DETECTION
             );
-
-
-            console.log(
-                "[ShotDetection] Stage completed."
-            );
-
-
-            /*
-             * 11. Trigger next stage
-             */
 
             EventBus.publish(
-
-                events.SHOTS_COMPLETED,
-
-                {
-                    jobId
-                }
-
+                events.SHOT_DETECTION_COMPLETED,
+                { jobId }
             );
-
 
             console.log(
                 "==========================================\n"
             );
-
 
         } catch (error) {
 
@@ -254,22 +136,15 @@ EventBus.subscribe(
                 error
             );
 
-
-            /*
-             * Mark stage as failed
-             */
-
             try {
 
                 await ProgressService.failStage(
-
                     jobId,
-
-                    STAGES.SHOTS,
-
+                    STAGES.SHOT_DETECTION,
                     error.message
-
                 );
+
+                JobService.fail(jobId, error.message);
 
             } catch (progressError) {
 
@@ -280,20 +155,12 @@ EventBus.subscribe(
 
             }
 
-
-            /*
-             * Notify pipeline
-             */
-
             EventBus.publish(
-
-                events.SHOTS_FAILED,
-
+                events.SHOT_DETECTION_FAILED,
                 {
                     jobId,
                     error: error.message
                 }
-
             );
 
         }

@@ -7,18 +7,10 @@ class JobService {
         this.jobs = new Map();
     }
 
-    create(filename, tmdbId) {
+    create(filename) {
 
         if (!filename) {
             throw new Error("Filename is required");
-        }
-
-        const normalizedTmdbId = Number(tmdbId)
-
-        if (!Number.isInteger(normalizedTmdbId) || normalizedTmdbId <= 0) {
-            throw new Error(
-                "Valid tmdbId is required"
-            )
         }
 
         const jobId = randomUUID()
@@ -26,9 +18,6 @@ class JobService {
         const job = {
             id: jobId,
             filename,
-            movie: {
-                normalizedTmdbId
-            },
             status: JobStatus.CREATED,
             stage: null,
             progress: 0,
@@ -74,87 +63,46 @@ class JobService {
 
     }
 
-    async saveFilename(jobId, filename) {
+    complete(jobId) {
+        const job = this.jobs.get(jobId);
 
-        if (!filename) {
-            throw new Error(
-                "Filename is required."
-            );
+        if (!job) {
+            return null;
         }
 
-        const paths =
-            StorageService.getPaths(jobId);
+        const completedJob = {
+            ...job,
+            status: JobStatus.COMPLETED,
+            progress: 100,
+            stage: null,
+            updatedAt: new Date()
+        };
 
-        await fs.promises.mkdir(
-            paths.metadata,
-            {
-                recursive: true
-            }
-        );
+        this.jobs.set(jobId, completedJob);
 
-        const filePath =
-            path.join(
-                paths.metadata,
-                "movie_file.json"
-            );
+        console.log("Job completed: ", completedJob);
 
-        await fs.promises.writeFile(
-            filePath,
-            JSON.stringify(
-                {
-                    filename
-                },
-                null,
-                2
-            ),
-            "utf-8"
-        );
-
-        console.log(
-            `[JobService] Movie filename saved: ${filename}`
-        );
-
-        return filename;
+        return { ...completedJob };
     }
 
+    fail(jobId, error) {
+        const job = this.jobs.get(jobId);
 
-    async getFilename(jobId) {
-
-        const paths =
-            StorageService.getPaths(jobId);
-
-        const filePath =
-            path.join(
-                paths.metadata,
-                "movie_file.json"
-            );
-
-        if (!fs.existsSync(filePath)) {
-
-            throw new Error(
-                `Movie filename not found for job ${jobId}`
-            );
+        if (!job) {
+            return null;
         }
 
-        const raw =
-            await fs.promises.readFile(
-                filePath,
-                "utf-8"
-            );
+        const failedJob = {
+            ...job,
+            status: JobStatus.FAILED,
+            error: error || null,
+            updatedAt: new Date()
+        };
 
-        const data =
-            JSON.parse(raw);
+        this.jobs.set(jobId, failedJob);
 
-        if (!data.filename) {
-
-            throw new Error(
-                `Movie filename is missing for job ${jobId}`
-            );
-        }
-
-        return data.filename;
+        return { ...failedJob };
     }
-
 
 }
 

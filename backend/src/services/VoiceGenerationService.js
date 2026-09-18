@@ -1,143 +1,61 @@
 const fs = require("fs");
-const path = require("path");
-
-const {
-    ElevenLabsClient
-} = require("@elevenlabs/elevenlabs-js");
-
-
-const elevenlabs =
-    new ElevenLabsClient({
-
-        apiKey:
-            process.env.ELEVENLABS_API_KEY
-
-    });
-
+const { EdgeTTS } = require("@andresaya/edge-tts");
 
 class VoiceGenerationService {
+
+    constructor() {
+        this.voice =
+            process.env.EDGE_TTS_VOICE ||
+            "en-US-AriaNeural";
+
+        this.rate =
+            process.env.EDGE_TTS_RATE ||
+            "-5%";
+    }
 
     async generate({
         text,
         outputPath
     }) {
 
-        if (
-            !text ||
-            !text.trim()
-        ) {
+        const storyText = String(text || "").trim();
 
-            throw new Error(
-                "Voice generation text is required."
-            );
-
+        if (!storyText) {
+            throw new Error("storyText is empty.");
         }
 
+        console.log(
+            `[Voice] Generating ${storyText.length} characters with ${this.voice}`
+        );
 
-        if (!outputPath) {
+        const tts = new EdgeTTS();
 
-            throw new Error(
-                "Voice generation output path is required."
-            );
-
-        }
-
-
-        await fs.promises.mkdir(
-
-            path.dirname(outputPath),
-
+        await tts.synthesize(
+            storyText,
+            this.voice,
             {
-                recursive: true
+                rate: this.rate,
+                outputFormat: "audio-24khz-96kbitrate-mono-mp3"
             }
-
         );
 
+        const audio = tts.toBuffer();
 
-        console.log(
-            `[VoiceGeneration] Generating voice...`
-        );
-
-
-        console.log(
-            `[VoiceGeneration] Output: ${outputPath}`
-        );
-
-
-        /*
-         * -----------------------------------------
-         * Generate speech
-         * -----------------------------------------
-         */
-
-        const audio =
-            await elevenlabs.textToSpeech.convert(
-
-                "JBFqnCBsd6RMkjVDRZzb",
-
-                {
-                    text,
-
-                    modelId:
-                        "eleven_multilingual_v2",
-
-                    outputFormat:
-                        "mp3_44100_128"
-                }
-
-            );
-
-
-        /*
-         * -----------------------------------------
-         * Convert response to Buffer
-         * -----------------------------------------
-         */
-
-        const chunks = [];
-
-
-        for await (
-            const chunk of audio
-        ) {
-
-            chunks.push(
-                Buffer.from(chunk)
-            );
-
+        if (!audio || audio.length === 0) {
+            throw new Error("Edge TTS returned empty audio.");
         }
 
+        await fs.promises.writeFile(outputPath, audio);
 
-        const audioBuffer =
-            Buffer.concat(chunks);
-
-
-        /*
-         * -----------------------------------------
-         * Save MP3
-         * -----------------------------------------
-         */
-
-        await fs.promises.writeFile(
-
-            outputPath,
-
-            audioBuffer
-
-        );
-
-
-        console.log(
-            `[VoiceGeneration] Completed: ${outputPath}`
-        );
-
+        if (!fs.existsSync(outputPath)) {
+            throw new Error(
+                `Voice file was not created: ${outputPath}`
+            );
+        }
 
         return outputPath;
-
     }
 
 }
 
-
-module.exports =
-    new VoiceGenerationService();
+module.exports = new VoiceGenerationService();

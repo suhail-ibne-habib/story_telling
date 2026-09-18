@@ -4,75 +4,18 @@ module.exports = {
     METADATA_COMPLETED: "metadata.completed",
     METADATA_FAILED: "metadata.failed",
 
-    MOVIE_ENRICHMENT_COMPLETED: "movie.enrichment.completed",
-    MOVIE_ENRICHMENT_FAILED: "movie.enrichment.failed",
+    DOWNSAMPLE_COMPLETED: "downsample.completed",
+    DOWNSAMPLE_FAILED: "downsample.failed",
 
-    AUDIO_COMPLETED: "audio.completed",
-    AUDIO_FAILED: "audio.failed",
+    EVENT_EXTRACTION_COMPLETED: "event.extraction.completed",
+    EVENT_EXTRACTION_FAILED: "event.extraction.failed",
 
-    TRANSCRIPT_COMPLETED: "transcript.completed",
-    TRANSCRIPT_FAILED: "transcript.failed",
+    SHOT_DETECTION_COMPLETED: "shot.detection.completed",
+    SHOT_DETECTION_FAILED: "shot.detection.failed",
 
-    SHOTS_COMPLETED: "shots.completed",
-    SHOTS_FAILED: "shots.failed",
+    SHOT_SELECTION_COMPLETED: "shot.selection.completed",
+    SHOT_SELECTION_FAILED: "shot.selection.failed",
 
-    SHOT_CONTEXT_COMPLETED: "shot.context.completed",
-    SHOT_CONTEXT_FAILED: "shot.context.failed",
-
-    FRAMES_COMPLETED: "frames.completed",
-    FRAMES_FAILED: "frames.failed",
-
-    CHUNKS_COMPLETED: "chunks.completed",
-    CHUNKS_FAILED: "chunks.failed",
-
-    CONTACT_SHEETS_COMPLETED: "contact_sheets_completed",
-    CONTACT_SHEETS_FAILED: "contact_sheets_failed",
-
-    VISION_ANALYZE_COMPLETED: "vision.analysis.completed",
-    VISION_ANALYZE_FAILED: "vision.analysis.failed",
-
-    CHUNK_ANALYSIS_COMPLETED: "chunks.analysis.completed",
-    CHUNK_ANALYSIS_FAILED: "chunks.analysis.failed",
-
-    FULL_MOVIE_UNDERSTANDING_COMPLETED: 'full_movie_understanding_completed',
-    FULL_MOVIE_UNDERSTANDING_FAILED: 'full_movie_understanding_failed',
-
-    STORY_BEAT_PLANNING_COMPLETED: 'story_beat_planning_completed',
-    STORY_BEAT_PLANNING_FAILED: 'story_beat_planning_failed',
-
-    SHOT_MAPPING_COMPLETED: "shot.mapping.completed",
-    SHOT_MAPPING_FAILED: "shot.mapping.failed",
-
-    CLIP_EXTRACTION_COMPLETED: "clip_extraction_completed",
-    CLIP_EXTRACTION_FAILED: "clip_extraction_failed",
-
-    EVENT_CANDIDATES_COMPLETED: "event.candidates.completed",
-    EVENT_CANDIDATES_FAILED: "event.candidates.failed",
-
-    /*
-     * Script generation
-     */
-
-    SCRIPT_GENERATION_COMPLETED: "script.generation.completed",
-    SCRIPT_GENERATION_FAILED: "script.generation.failed",
-
-    /*
-     * Narration
-     */
-
-    NARRATION_COMPLETED: "narration.completed",
-    NARRATION_FAILED: "narration.failed",
-
-    VOICE_GENERATION_COMPLETED: "voice.generation.completed",
-    VOICE_GENERATION_FAILED: "voice.generation.failed",
-
-    /*
-     * Final rendering
-     */
-
-    VIDEO_RENDER_COMPLETED: "video.render.completed",
-    VIDEO_RENDER_FAILED: "video.render.failed",
-
-    VIDEO_ASSEMBLY_COMPLETED: "video.assembly.completed",
-    VIDEO_ASSEMBLY_FAILED: "video.assembly.failed"
+    VOICEOVER_COMPLETED: "voiceover.completed",
+    VOICEOVER_FAILED: "voiceover.failed"
 };

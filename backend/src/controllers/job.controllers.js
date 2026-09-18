@@ -9,7 +9,10 @@ const fs = require('fs')
 
 const createJob = asyncHandler(async (req, res) => {
 
-    const { filename, tmdbId, jobId } = req.body;
+    const { filename, jobId } = req.body;
+
+    console.log("Filename: ", filename);
+    console.log("Job ID: ", jobId);
 
     if (jobId) {
 
@@ -30,7 +33,7 @@ const createJob = asyncHandler(async (req, res) => {
         throw new ApiError("Filename is required", 400);
     }
 
-    const job = JobService.create(filename, tmdbId);
+    const job = JobService.create(filename);
 
     WorkflowEngine.start(job.id);
 
