@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recap inspect</title>
+  <style>
+    :root {
+      --ink: #f3ead8;
+      --muted: #b7aa93;
+      --paper: #16120e;
+      --card: #2c241b;
+      --line: #3b3228;
+      --gold: #e2b657;
+      --moss: #8fbe7a;
+      --warn: #d27a4a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.5 "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #120f0c;
+      border-bottom: 1px solid var(--line);
+      padding: 16px 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-size: 1.4rem;
+      flex: 1 1 220px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    select, button {
+      background: var(--card);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      min-width: 200px;
+    }
+
+    button { min-width: auto; cursor: pointer; }
+    .chip.on { border-color: var(--gold); color: var(--gold); }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    main { width: min(1200px, calc(100% - 40px)); margin: 24px auto 64px; }
+
+    .meta-row { color: var(--muted); margin-bottom: 18px; }
+    .final { background: var(--card); border: 1px solid var(--line); padding: 16px 18px; margin-bottom: 22px; }
+    .final video { max-width: 960px; }
+
+    .beat {
+      border: 1px solid var(--line);
+      border-left: 4px solid #5a4a34;
+      background: var(--card);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+    .beat.review { border-left-color: var(--warn); }
+    .beat h2 { margin: 0 0 8px; font-family: Palatino, "Palatino Linotype", Georgia, serif; }
+    .flag { color: var(--warn); font-size: 0.85rem; }
+    .writing { font-size: 1.12rem; }
+    .small { font-size: 0.9rem; color: var(--muted); }
+    .scene { color: var(--moss); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .tried { background: #1b1612; padding: 8px 10px; font-size: 0.88rem; }
+    .tried.pick { outline: 1px solid var(--gold); }
+    video, audio { width: 100%; display: block; background: #000; }
+    .hidden { display: none; }
+    .err, .empty { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Recap inspect</h1>
+    <div>
+      <label for="job">Job</label>
+      <select id="job"></select>
+    </div>
+    <div>
+      <label for="angle">Angle</label>
+      <select id="angle"></select>
+    </div>
+    <button id="reload" type="button">Reload</button>
+    <div class="filters">
+      <button class="chip on" data-filter="all" type="button">All beats</button>
+      <button class="chip" data-filter="review" type="button">Needs review</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="status" class="meta-row">Loading jobs…</p>
+    <section id="final" class="final hidden"></section>
+    <div id="beats"></div>
+  </main>
+
+  <script>
+    const jobSelect = document.getElementById("job");
+    const angleSelect = document.getElementById("angle");
+    const statusEl = document.getElementById("status");
+    const finalEl = document.getElementById("final");
+    const beatsEl = document.getElementById("beats");
+    let filter = "all";
+    let current = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function loadJobs() {
+      const response = await fetch("/api/v1/jobs");
+      const data = await response.json();
+      const jobs = data.jobs || [];
+      const previous = jobSelect.value || new URLSearchParams(location.search).get("jobId");
+
+      jobSelect.innerHTML = jobs.length
+        ? jobs.map((job) => {
+            const state = job.available.video ? "video" : job.available.recap ? "recap" : "early";
+            const label = `${job.title || job.jobId.slice(0, 8)} · ${state}`;
+            return `<option value="${escapeHtml(job.jobId)}">${escapeHtml(label)}</option>`;
+          }).join("")
+        : `<option value="">No jobs in storage</option>`;
+
+      if (previous && jobs.some((job) => job.jobId === previous)) {
+        jobSelect.value = previous;
+      }
+
+      if (jobSelect.value) {
+        await loadJob(jobSelect.value);
+      } else {
+        statusEl.textContent = "No job folders found under storage/jobs.";
+        beatsEl.innerHTML = "";
+        finalEl.classList.add("hidden");
+      }
+    }
+
+    async function loadJob(jobId) {
+      statusEl.textContent = "Loading…";
+      const response = await fetch(`/api/v1/jobs/${jobId}/inspect`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        statusEl.innerHTML = `<span class="err">${escapeHtml(data.message || "Failed to load job")}</span>`;
+        return;
+      }
+
+      current = data;
+      const previousAngle = angleSelect.value;
+      angleSelect.innerHTML = (data.angles || []).map((angle) => (
+        `<option value="${escapeHtml(angle.angle)}">${escapeHtml(angle.label)}</option>`
+      )).join("") || `<option value="">No recap yet</option>`;
+
+      if ((data.angles || []).some((angle) => angle.angle === previousAngle)) {
+        angleSelect.value = previousAngle;
+      }
+
+      history.replaceState(null, "", `?jobId=${encodeURIComponent(jobId)}`);
+      render();
+    }
+
+    function render() {
+      const angle = (current?.angles || []).find((item) => item.angle === angleSelect.value);
+
+      statusEl.textContent = [
+        current?.title,
+        current?.status,
+        current?.currentStage ? `stage: ${current.currentStage}` : null,
+        angle ? `${angle.beats.length} beats · ${angle.needs_review.length} need review` : "no recap yet"
+      ].filter(Boolean).join(" · ");
+
+      if (angle?.video) {
+        finalEl.innerHTML = `<h2>${escapeHtml(angle.title || angle.label)}</h2><video controls src="${escapeHtml(angle.video)}"></video>`;
+        finalEl.classList.remove("hidden");
+      } else {
+        finalEl.classList.add("hidden");
+      }
+
+      const beats = (angle?.beats || []).filter((beat) => filter === "all" || beat.needs_review);
+
+      beatsEl.innerHTML = beats.map((beat) => {
+        const cited = (beat.moments || []).map((moment) => `
+          <p class="small"><span class="scene">${escapeHtml(moment.id)}</span>
+            ${escapeHtml(moment.clock)} · ${escapeHtml(moment.shows)}</p>`).join("");
+
+        const picks = (beat.parts || []).length ? beat.parts : (beat.chosen ? [beat.chosen] : []);
+        const tried = (beat.tried || []).map((attempt) => `
+          <div class="tried${picks.some((pick) => attempt.moment_id === pick.moment_id && attempt.start_sec === pick.start_sec) ? " pick" : ""}">
+            ${escapeHtml(attempt.moment_id)} ${escapeHtml(attempt.start_clock)} · score ${attempt.score ?? "n/a"}<br>
+            <span class="small">${escapeHtml(attempt.reason)}</span>
+          </div>`).join("");
+
+        return `
+          <section class="beat${beat.needs_review ? " review" : ""}">
+            <h2>${escapeHtml(beat.beat_id)} ${beat.rewritten ? '<span class="flag">line rewritten</span>' : ""} ${beat.needs_review ? '<span class="flag">needs review</span>' : ""}</h2>
+            <p class="writing">${escapeHtml(beat.text)}</p>
+            ${beat.rewritten ? `<p class="small">Original: ${escapeHtml(beat.original_text)}</p>` : ""}
+            ${beat.shows ? `<p class="small">Expected on screen: ${escapeHtml(beat.shows)}</p>` : ""}
+            ${cited}
+            ${(beat.parts || []).length > 1
+              ? beat.parts.map((part, order) => `<p class="small">Shot ${order + 1}: ${escapeHtml(part.moment_id)} ${escapeHtml(part.start_clock)} (${Number(part.duration_sec).toFixed(1)}s) · wanted "${escapeHtml(part.shows)}" · score ${part.score ?? "n/a"}</p>`).join("")
+              : beat.chosen
+                ? `<p class="small">Chosen: ${escapeHtml(beat.chosen.moment_id)} ${escapeHtml(beat.chosen.start_clock)}–${escapeHtml(beat.chosen.end_clock)} · score ${beat.chosen.score ?? "n/a"}</p>`
+                : `<p class="empty">Not cut yet.</p>`}
+            <div class="grid">
+              ${beat.clip ? `<video controls src="${escapeHtml(beat.clip)}"></video>` : ""}
+              <div>
+                ${beat.audio ? `<audio controls src="${escapeHtml(beat.audio)}"></audio>` : '<p class="small">No voice yet.</p>'}
+                <p class="small">${beat.duration_sec ? Number(beat.duration_sec).toFixed(1) + "s voice" : ""}</p>
+              </div>
+            </div>
+            ${tried ? `<div class="grid">${tried}</div>` : ""}
+          </section>`;
+      }).join("") || `<p class="empty">${angle ? "No beats match this filter." : "No recap yet. Wait for the recap stage."}</p>`;
+    }
+
+    jobSelect.addEventListener("change", () => {
+      if (jobSelect.value) loadJob(jobSelect.value);
+    });
+    angleSelect.addEventListener("change", render);
+    document.getElementById("reload").addEventListener("click", loadJobs);
+    document.querySelectorAll(".chip").forEach((button) => {
+      button.addEventListener("click", () => {
+        filter = button.getAttribute("data-filter");
+        document.querySelectorAll(".chip").forEach((node) => node.classList.toggle("on", node === button));
+        render();
+      });
+    });
+
+    loadJobs().catch((error) => {
+      statusEl.innerHTML = `<span class="err">${escapeHtml(error.message)}. Is the API running?</span>`;
+    });
+  </script>
+</body>
+</html>
