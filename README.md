@@ -184,7 +184,7 @@ python assemble_video.py --script outputs/script_standard.json --output recap_fi
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://www.google.com/search?q=../../issues).
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/suhail-ibne-habib/story_telling/issues).
 
 ---
 
